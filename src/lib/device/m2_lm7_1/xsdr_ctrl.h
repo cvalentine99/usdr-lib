@@ -53,9 +53,17 @@ struct xsdr_dev
     int tx_override_phase_iq;
     int rx_override_phase;
 
+    int lmlcal_tx_phase;
+    int lmlcal_rx_phase;
+
     bool afe_active;
+    bool cfg_srate_siso_rx;
+    bool cfg_srate_siso_tx;
     bool siso_sdr_active_rx;
     bool siso_sdr_active_tx;
+    bool rx_port_is_1;
+    bool mmcm_tx;
+    bool mmcm_rx;
     bool pwr_en;
     bool new_rev;
     bool ssdr;
@@ -136,6 +144,7 @@ int xsdr_pwren(xsdr_dev_t *d, bool on);
 int xsdr_prepare(xsdr_dev_t *d, bool rxen, bool txen);
 
 int xsdr_gettemp(xsdr_dev_t *d, int* temp256);
+int xsdr_gettemp_id(xsdr_dev_t *d, int* id);
 
 enum xsdr_tx_port_cfg_flags {
     MUTE_B = 0,
@@ -152,12 +161,16 @@ int xsdrcal_set_corr_param(void* param, int channel, int corr_type, int value);
 int xsdrcal_do_meas_nco_avg(void* param, int channel, unsigned logduration, int *func);
 //int (*set_tx_testsig_fs8)(void* param, int channel);
 
+int xsdr_phy_tx_iqsel(xsdr_dev_t *d, uint8_t iqsel);
 
-int xsdr_phy_en_lfsr_mimo(xsdr_dev_t *d, bool en);
+int xsdr_phy_en_lfsr_generator_mimo(xsdr_dev_t *d, bool en, bool lfsr);
+int xsdr_phy_en_lfsr_checker_mimo(xsdr_dev_t *d, bool en);
+int xsdr_phy_en_iqab_checker_mimo(xsdr_dev_t *d, bool en);
 enum lfsr_cntr_types {
     LFSR_CNTR_SYNC = 0,
     LFSR_CNTR_LOST = 1,
     LFSR_CNTR_BER = 2,
+    LFSR_CNTR_IQS = 3,
 };
 
 int xsdr_phy_lfsr_mimo_state(xsdr_dev_t *d, int type, uint32_t v[4]);
@@ -237,7 +250,7 @@ enum {
 };
 
 
-
+int xsdr_txphase_ovr(xsdr_dev_t *d, unsigned v);
 
 
 #endif

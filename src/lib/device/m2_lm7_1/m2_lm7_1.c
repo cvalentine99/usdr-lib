@@ -224,6 +224,8 @@ static int dev_m2_lm7_1_phy_rx_dly_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64
 static int dev_m2_lm7_1_phy_rx_lfsr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_phy_rx_lfsr_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *ovalue);
 
+static int dev_m2_lm7_1_phy_tx_lfsr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
+static int dev_m2_lm7_1_phy_tx_iqsel_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
 static int dev_m2_lm7_1_lms7002rxlml_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_debug_clkinfo_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
@@ -233,6 +235,8 @@ static int dev_m2_lm7_1_revision_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t
 static int dev_m2_lm7_1_sdr_tx_phase_ovr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_sdr_rx_phase_ovr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_sdr_tx_phase_ovr_iq_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
+static int dev_m2_lm7_1_sdr_tx_phase_ovr_rc_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
+
 
 static int dev_m2_lm7_1_sdr_vio_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
@@ -257,6 +261,7 @@ const usdr_dev_param_func_t s_fparams_m2_lm7_1_rev000[] = {
     { "/dm/sdr/0/vio",          { dev_m2_lm7_1_sdr_vio_set, NULL }},
     { "/dm/sdr/0/tx/phase_ovr", { dev_m2_lm7_1_sdr_tx_phase_ovr_set, NULL }},
     { "/dm/sdr/0/tx/phase_ovr_iq", { dev_m2_lm7_1_sdr_tx_phase_ovr_iq_set, NULL }},
+    { "/dm/sdr/0/tx/phase_ovr_rc", { dev_m2_lm7_1_sdr_tx_phase_ovr_rc_set, NULL }},
     { "/dm/sdr/0/rx/phase_ovr", { dev_m2_lm7_1_sdr_rx_phase_ovr_set, NULL }},
 
     { "/dm/sdr/0/rx/dccorr",    { dev_m2_lm7_1_sdr_rx_dccorr_set, NULL }},
@@ -321,6 +326,8 @@ const usdr_dev_param_func_t s_fparams_m2_lm7_1_rev000[] = {
 
     { "/dm/sdr/0/phy_rx_dly",       { dev_m2_lm7_1_phy_rx_dly_set, NULL }},
     { "/dm/sdr/0/phy_rx_lfsr",      { dev_m2_lm7_1_phy_rx_lfsr_set, dev_m2_lm7_1_phy_rx_lfsr_get }},
+    { "/dm/sdr/0/phy_tx_lfsr",      { dev_m2_lm7_1_phy_tx_lfsr_set, NULL }},
+    { "/dm/sdr/0/phy_tx_iqsel",     { dev_m2_lm7_1_phy_tx_iqsel_set, NULL }},
 
     { "/dm/sdr/0/phyrxlml",         { dev_m2_lm7_1_phyrxlm_set, NULL }},
     { "/debug/hw/lms7002m/0/rxlml", { dev_m2_lm7_1_lms7002rxlml_set, NULL }},
@@ -375,8 +382,21 @@ int dev_m2_lm7_1_phy_rx_dly_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t valu
 
 int dev_m2_lm7_1_phy_rx_lfsr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
 {
-    return xsdr_phy_en_lfsr_mimo(&((struct dev_m2_lm7_1_gps *)ud)->xdev, value ? true : false);
+    return xsdr_phy_en_lfsr_checker_mimo(&((struct dev_m2_lm7_1_gps *)ud)->xdev, value ? true : false);
 }
+
+int dev_m2_lm7_1_phy_tx_lfsr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    return xsdr_phy_en_lfsr_generator_mimo(&((struct dev_m2_lm7_1_gps *)ud)->xdev,
+                                           (value & 1) ? true : false,
+                                           (value & 2) ? true : false);
+}
+
+int dev_m2_lm7_1_phy_tx_iqsel_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    return xsdr_phy_tx_iqsel(&((struct dev_m2_lm7_1_gps *)ud)->xdev, value);
+}
+
 
 int dev_m2_lm7_1_phy_rx_lfsr_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t* ovalue)
 {
@@ -428,6 +448,13 @@ int dev_m2_lm7_1_sdr_tx_phase_ovr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_
     d->xdev.tx_override_phase = value;
     return 0;
 }
+
+int dev_m2_lm7_1_sdr_tx_phase_ovr_rc_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)ud;
+    return xsdr_txphase_ovr(&d->xdev, value);
+}
+
 
 int dev_m2_lm7_1_sdr_tx_phase_ovr_iq_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
 {
@@ -1066,38 +1093,6 @@ int usdr_device_m2_lm7_1_lsop(lldev_t dev, subdev_t subdev,
     return d->p_original_ops->ls_op(dev, subdev, ls_op, ls_op_addr, meminsz, pin, memoutsz, pout);
 }
 
-static
-int usdr_device_m2_lm7_1_stream_initialize(lldev_t dev, subdev_t subdev, lowlevel_stream_params_t* params, stream_t* channel)
-{
-    struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)lowlevel_get_device(dev);
-    int res;
-    unsigned streamno = params->streamno;
-
-    if (getenv("USDR_BARE_DEV")) {
-        return -EOPNOTSUPP;
-    }
-
-    res = xsdr_prepare(&d->xdev, true, true);
-    if (res) {
-        return res;
-    }
-
-    res = d->p_original_ops->stream_initialize(dev, subdev, params, channel);
-    if (res) {
-        xsdr_rfic_streaming_down(&d->xdev, streamno == 0 ? RFIC_LMS7_RX : RFIC_LMS7_TX);
-    }
-
-    return res;
-}
-
-static
-int usdr_device_m2_lm7_1_stream_deinitialize(lldev_t dev, subdev_t subdev, stream_t channel)
-{
-    struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)lowlevel_get_device(dev);
-    xsdr_rfic_streaming_down(&d->xdev, RFIC_LMS7_RX);
-    return d->p_original_ops->stream_deinitialize(dev, subdev, channel);
-}
-
 xsdr_dev_t* get_xsdr_dev(pdevice_t udev)
 {
     struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)udev;
@@ -1150,8 +1145,6 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
     // Proxy operations
     memcpy(&d->my_ops, lowlevel_get_ops(dev), sizeof (lowlevel_ops_t));
     d->my_ops.ls_op = &usdr_device_m2_lm7_1_lsop;
-    d->my_ops.stream_initialize = &usdr_device_m2_lm7_1_stream_initialize;
-    d->my_ops.stream_deinitialize = &usdr_device_m2_lm7_1_stream_deinitialize;
     d->p_original_ops = lowlevel_get_ops(dev);
     dev->ops = &d->my_ops;
 
@@ -1211,11 +1204,14 @@ int usdr_device_m2_lm7_1_create_stream(device_t* dev, const char* sid, const cha
     unsigned hwchs;
     channel_info_t lchans;
 
+    if (getenv("USDR_BARE_DEV")) {
+        return -EOPNOTSUPP;
+    }
+
     res = xsdr_map_channels(channels, &lchans);
     if (res) {
         return res;
     }
-
 
     if (strstr(sid, "rx") != NULL) {
         if (d->rx) {
@@ -1254,8 +1250,15 @@ int usdr_device_m2_lm7_1_create_stream(device_t* dev, const char* sid, const cha
                                     flags, M2PCI_REG_WR_RXDMA_CONFIRM, VIRT_CFG_SFX_BASE, 0,
                                     SRF4_FIFOBSZ, CSR_RFE4_BASE, &d->rx, &hwchs);
         if (res) {
+            USDR_LOG("XSDR", USDR_LOG_ERROR, "Unable to create stream '%s': error=%d\n", sid, res);
             return res;
         }
+
+        res = xsdr_prepare(&d->xdev, true, d->tx);
+        if (res) {
+            return res;
+        }
+
         *out_handle = d->rx;
     } else if (strstr(sid, "tx") != NULL) {
         if (d->tx) {
@@ -1281,6 +1284,11 @@ int usdr_device_m2_lm7_1_create_stream(device_t* dev, const char* sid, const cha
             // TODO: update samplerate settings
         }
 
+        res = xsdr_prepare(&d->xdev, d->rx, true);
+        if (res) {
+            return res;
+        }
+
         res = create_sfetrx4_stream(dev, CORE_SFETX_DMA32_R0, dformat, channels->count, &lchans, pktsyms,
                                     flags, M2PCI_REG_WR_TXDMA_CNF_L, M2PCI_REG_WR_SYNC_CTRL, M2PCI_REG_RD_TXDMA_STAT,
                                     0, 0, &d->tx, &hwchs);
@@ -1300,9 +1308,13 @@ int usdr_device_m2_lm7_1_unregister_stream(device_t* dev, stream_handle_t* strea
 {
     struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)dev;
     if (stream == d->tx) {
+        xsdr_rfic_streaming_down(&d->xdev, RFIC_LMS7_TX);
+
         d->tx->ops->destroy(d->tx);
         d->tx = NULL;
     } else if (stream == d->rx) {
+        xsdr_rfic_streaming_down(&d->xdev, RFIC_LMS7_RX);
+
         d->rx->ops->destroy(d->rx);
         d->rx = NULL;
     } else {

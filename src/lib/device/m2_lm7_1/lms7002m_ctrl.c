@@ -1106,12 +1106,17 @@ int lms7002m_samplerate(lms7002_dev_t *d,
 
 int lms7002m_set_lmlrx_mode(lms7002_dev_t *d, unsigned mode)
 {
+    d->lml_mode.rx_lfsr = 0;
+    d->lml_mode.rx_tx_dig_loopback = 0;
+
     switch (mode) {
-    case XSDR_LMLRX_LFSR: d->lml_mode.rx_lfsr = 1; break;
-    case XSDR_LMLRX_DIGLOOPBACK: d->lml_mode.rx_tx_dig_loopback = 1; break;
+    case XSDR_LMLRX_LFSR:
+        d->lml_mode.rx_lfsr = 1;
+        break;
+    case XSDR_LMLRX_DIGLOOPBACK:
+        d->lml_mode.rx_tx_dig_loopback = 1;
+        break;
     default:
-        d->lml_mode.rx_lfsr = 0;
-        d->lml_mode.rx_tx_dig_loopback = 0;
         break;
     }
 

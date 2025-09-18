@@ -186,6 +186,7 @@ enum LML_MODE {
     LML_MODE_NORMAL = 0,
     LML_MODE_LOOPBACK = 1,
     LML_MODE_LFSR = 2,
+    LML_MODE_LOOPBACK_GEN = 3,
 };
 
 static pdm_dev_t dev = NULL;
@@ -213,6 +214,7 @@ static void dev_exit()
 static void dev_set_rate(unsigned rate)
 {
     int res;
+    unsigned lmode = mode;
 
     for (unsigned k = 0; ; k ++) {
         res = !dev ? 0 : usdr_dmr_rate_set(dev, NULL, rate);
@@ -226,7 +228,11 @@ static void dev_set_rate(unsigned rate)
         }
     }
 
-    res = !dev ? 0 : usdr_dme_set_uint(dev, "/debug/hw/lms7002m/0/rxlml", mode);
+    if (lmode == LML_MODE_LOOPBACK_GEN) {
+        lmode = LML_MODE_LOOPBACK;
+    }
+
+    res = !dev ? 0 : usdr_dme_set_uint(dev, "/debug/hw/lms7002m/0/rxlml", lmode);
     if (res) {
         USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set device mode: errno %d", res);
         dev_exit();
@@ -262,6 +268,33 @@ static void dev_set_rx_phase(unsigned val)
         USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set device LML RX DLY: errno %d", res);
         dev_exit();
     }
+
+}
+
+static void dev_set_tx_phase_rc(unsigned val)
+{
+    int res = !dev ? 0 : usdr_dme_set_uint(dev, "/dm/sdr/0/tx/phase_ovr_rc", val);
+    if (res) {
+        USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set device LML TX VAL IQ: errno %d", res);
+        dev_exit();
+    }
+}
+
+static void dev_set_tx_phase(unsigned val, unsigned val_iq)
+{
+    unsigned mode = val + 1;
+    unsigned mode_iq = val_iq + 1;
+    int res = !dev ? 0 : usdr_dme_set_uint(dev, "/dm/sdr/0/tx/phase_ovr", mode);
+    if (res) {
+        USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set device LML TX: errno %d", res);
+        dev_exit();
+    }
+
+    res = !dev ? 0 : usdr_dme_set_uint(dev, "/dm/sdr/0/tx/phase_ovr_iq", mode_iq);
+    if (res) {
+        USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set device LML TX IQ: errno %d", res);
+        dev_exit();
+    }
 }
 
 static void dev_set_rx_lfsr_hw_checker(bool en)
@@ -269,6 +302,15 @@ static void dev_set_rx_lfsr_hw_checker(bool en)
     int res = !dev ? 0 : usdr_dme_set_uint(dev, "/dm/sdr/0/phy_rx_lfsr", en);
     if (res) {
         USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set HW LFSR Checker: errno %d", res);
+        dev_exit();
+    }
+}
+
+static void dev_set_tx_lfsr_hw_generator(bool en)
+{
+    int res = !dev ? 0 : usdr_dme_set_uint(dev, "/dm/sdr/0/phy_tx_lfsr", en);
+    if (res) {
+        USDR_LOG(LOG_TAG, USDR_LOG_ERROR, "Unable to set HW LFSR Generator: errno %d", res);
         dev_exit();
     }
 }
@@ -321,7 +363,7 @@ static void dev_init()
 
     const char* synctype = "all";
     int res;
-    bool tx = (mode != LML_MODE_LFSR);
+    bool tx = (mode == LML_MODE_LOOPBACK);
 
     usdr_channel_info_t chans_rx;
     usdr_channel_info_t chans_tx;
@@ -614,7 +656,7 @@ enum {
 void do_lfsr_test(lfsr_stream_t str[TOTAL_STREAMS])
 {
     int res;
-    unsigned flags = 0; //FLAGS_ERRORS;
+    unsigned flags = 0; //FLAGS_VERBOSE;
     for (unsigned i = 0; i < TOTAL_STREAMS; i++) {
         lfsr_init(&str[i], 4, 0xffe);
         str[i].xor_stage = i & 1; // LML interface invert bit in LFSR stream for Q components
@@ -664,8 +706,88 @@ void do_lfsr_test(lfsr_stream_t str[TOTAL_STREAMS])
     }
 }
 
-
 #define MAX_TAPS 64
+
+void do_lfsr_hwtx_test(unsigned str[TOTAL_STREAMS])
+{
+    dev_set_tx_lfsr_hw_generator(false);
+    usleep(1);
+    dev_set_tx_lfsr_hw_generator(true);
+    dev_set_rx_lfsr_hw_checker(true);
+    usleep(1000 * maximum_iterations);
+    dev_get_rx_lfsr_hw_checker(str);
+}
+
+void lfsr_test_hw_tx()
+{
+    mode = LML_MODE_LOOPBACK_GEN;
+    float rate = specific_rate;
+    unsigned str[MAX_TAPS][TOTAL_STREAMS];
+
+    dev_set_rate(rate);
+    dev_init();
+
+    for (unsigned k = 0; k < MAX_TAPS; k++) {
+        //dev_init();
+        //dev_set_tx_phase(k, 0); // CLK
+        //dev_set_rate(rate);
+
+        dev_set_tx_phase_rc(k);
+        do_lfsr_hwtx_test(str[k]);
+    }
+
+    dev_deinit();
+
+    for (unsigned j = 0; j < 4; j++) {
+        fprintf(stderr, "TXCH%d: ", j);
+
+        for (unsigned k = 0; k < MAX_TAPS; k++) {
+            unsigned ecnt = str[k][j];
+
+            fprintf(stderr, "%c", (ecnt == 0) ? ' ' : (ecnt < 1000) ? 'x' : 'X');
+        }
+
+        fprintf(stderr, "\n");
+    }
+}
+
+
+void lfsr_test_shw_tx()
+{
+    mode = LML_MODE_LOOPBACK_GEN;
+    float rate = specific_rate;
+    dev_set_rate(rate);
+
+    unsigned str[MAX_TAPS][MAX_TAPS][TOTAL_STREAMS];
+
+    for (unsigned l = 0; l < MAX_TAPS; l++) {
+        for (unsigned k = 0; k < MAX_TAPS; k++) {
+            dev_init();
+
+            dev_set_tx_phase(k, l); // CLK
+            dev_set_rate(rate);
+
+            do_lfsr_hwtx_test(str[l][k]);
+
+            dev_deinit();
+        }
+    }
+
+    for (unsigned l = 0; l < MAX_TAPS; l++) {
+        for (unsigned j = 0; j < 4; j++) {
+            fprintf(stderr, "TX_IQ%d_CH%d: ", l, j);
+
+            for (unsigned k = 0; k < MAX_TAPS; k++) {
+                unsigned ecnt = str[l][k][j];
+
+                fprintf(stderr, "%c", (ecnt == 0) ? ' ' : (ecnt < 1000) ? 'x' : 'X');
+            }
+            fprintf(stderr, "\n");
+        }
+    }
+
+}
+
 
 void do_lfsr_hw_test(unsigned str[TOTAL_STREAMS])
 {
@@ -708,9 +830,9 @@ void lfsr_test_hw()
 
 }
 
-void lfsr_tests()
+void lfsr_tests(bool hwgen)
 {
-    mode = LML_MODE_LFSR;
+    mode = hwgen ? LML_MODE_LOOPBACK_GEN : LML_MODE_LFSR ;
     lfsr_stream_t str[MAX_TAPS][TOTAL_STREAMS];
 
     dev_set_vio(2300);
@@ -727,10 +849,17 @@ void lfsr_tests()
         for (unsigned h = 0; h < 12; h++) {
             dev_set_rx_dly(h + 2, k); // D0
         }
-#else
-        dev_set_rx_phase(k); // CLK
-        dev_set_rate(rate);
 #endif
+        if (hwgen) {
+            dev_set_tx_lfsr_hw_generator(true);
+            dev_set_tx_phase(k, k); // CLK
+        } else {
+            dev_set_rx_phase(k); // CLK
+        }
+        dev_set_rate(rate);
+
+
+//#endif
         do_lfsr_test(str[k]);
 
         dev_deinit();
@@ -800,11 +929,14 @@ int main(int argc, char** argv)
 
     unsigned statistics = 0;
 
+    bool hwtxrx_tests = false;
+    bool shwtx_tests = false;
+    bool hwtx_tests = false;
     bool hw_tests = false;
     bool dump_rx = false;
     int opt, res;
 
-    while ((opt = getopt(argc, argv, "Mi:r:j:D:t:l:dow")) != -1) {
+    while ((opt = getopt(argc, argv, "Mi:r:j:D:t:l:dowWZz")) != -1) {
         switch (opt) {
         case 'M':
             memcached = true;
@@ -834,8 +966,17 @@ int main(int argc, char** argv)
         case 'o':
             dump_rx = true;
             break;
+        case 'z':
+            hwtxrx_tests = true;
+            break;
+        case 'W':
+            hwtx_tests = true;
+            break;
         case 'w':
             hw_tests = true;
+            break;
+        case 'Z':
+            shwtx_tests = true;
             break;
         default:
             exit(EXIT_FAILURE);
@@ -865,10 +1006,14 @@ int main(int argc, char** argv)
 
 
     // Tests
-    if (hw_tests) {
+    if (shwtx_tests) {
+        lfsr_test_shw_tx();
+    } else if (hwtx_tests) {
+        lfsr_test_hw_tx();
+    } else if (hw_tests) {
         lfsr_test_hw();
     } else {
-        lfsr_tests();
+        lfsr_tests(hwtxrx_tests);
     }
 
     res = dry_run ? 0 : usdr_dmd_close(dev);

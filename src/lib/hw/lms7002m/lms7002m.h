@@ -99,8 +99,10 @@ struct lms7002m_lml_map {
 };
 typedef struct lms7002m_lml_map lms7002m_lml_map_t;
 
+int lms7002m_limelight_toggle_ntx(lms7002m_state_t* m);
 int lms7002m_limelight_reset(lms7002m_state_t* m);
-
+int lms7002m_limelight_fifo_reset(lms7002m_state_t* m, bool rx, bool tx);
+int lms7002m_limelight_l_reset(lms7002m_state_t* m, bool rx, bool tx);
 
 struct lms7002m_limelight_conf {
     uint8_t rxsisoddr : 1;
@@ -167,7 +169,7 @@ typedef enum lms7002m_xxtsp lms7002m_xxtsp_t;
 
 // TSTPs
 int lms7002m_rxtsp_dc_corr(lms7002m_state_t* m, bool byp, unsigned wnd);
-
+int lms7002m_xxtsp_bst(lms7002m_state_t* m, lms7002m_xxtsp_t tsp);
 int lms7002m_xxtsp_enable(lms7002m_state_t* m, lms7002m_xxtsp_t tsp, bool enable);
 int lms7002m_xxtsp_int_dec(lms7002m_state_t* m, lms7002m_xxtsp_t tsp, unsigned intdec_ord);
 
