@@ -1131,7 +1131,7 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
     if (res)
         return res;
 
-    d->dpump = d->double_pump;
+    d->xdev.dpump = d->double_pump;
 
     if (d->xdev.new_rev) {
         // Init FE

@@ -67,6 +67,8 @@ struct xsdr_dev
     bool pwr_en;
     bool new_rev;
     bool ssdr;
+
+    bool dpump; //Dual pump data
     union {
         bool pmic_ch145_valid;
         bool dac_old_r5;
