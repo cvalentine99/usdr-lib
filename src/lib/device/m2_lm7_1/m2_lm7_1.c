@@ -350,6 +350,7 @@ struct dev_m2_lm7_1_gps {
     struct dev_fe* fe;
     bool bifurcation_en;
     bool nodecint;
+    bool double_pump;
 
     int cal_data[8];
 
@@ -1109,6 +1110,7 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
 
     d->bifurcation_en = false;
     d->nodecint = false;
+    d->double_pump = false;
 
     for (unsigned i = 0; i < pcount; i++) {
         if (strcmp(devparam[i], "fe") == 0) {
@@ -1120,11 +1122,16 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
         if (strcmp(devparam[i], "nodec") == 0) {
             d->nodecint = true;
         }
+        if (strcmp(devparam[i], "dpump") == 0) {
+            d->double_pump = true;
+        }
     }
 
     res = xsdr_init(&d->xdev);
     if (res)
         return res;
+
+    d->dpump = d->double_pump;
 
     if (d->xdev.new_rev) {
         // Init FE

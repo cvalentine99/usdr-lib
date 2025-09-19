@@ -300,22 +300,31 @@ int xsdr_phy_tx_iqsel(xsdr_dev_t *d, uint8_t iqsel)
     return xsdr_phy_tx_reg(d, PHY_REG_PORT_IQSEL, iqsel);
 }
 
+static int _xsdr_mmcm_pd(xsdr_dev_t *d)
+{
+    return xsdr_phy_tx_reg(d, PHY_REG_MMCM_CTRL, 2);
+}
+
 int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, unsigned txphase, unsigned txphase_off)
 {
-    bool nomul = d->base.lml_mode.txsisoddr || (d->base.txtsp_div > 1);
+    bool nomul = (rx_master) ? d->base.lml_mode.rxsisoddr || (d->base.rxtsp_div > 1) :
+        d->base.lml_mode.txsisoddr || (d->base.txtsp_div > 1);
     unsigned mmcm_ctrl_sel = (rx_master) ? 0 : 4;
     unsigned tx_mclk = d->base.cgen_clk / d->base.txcgen_div / d->base.lml_mode.txdiv;
-    unsigned io_clk  = (nomul) ? tx_mclk : tx_mclk * 2;
+    unsigned rx_mclk = d->base.cgen_clk / d->base.rxcgen_div / d->base.lml_mode.rxdiv;
+    unsigned io_mclk = (rx_master) ? rx_mclk : tx_mclk;
+    unsigned io_clk  = (nomul) ? io_mclk : io_mclk * 2;
     unsigned vco_div_io_m = (MMCM_VCO_MAX  + io_clk - 1) / io_clk;
     if (vco_div_io_m > 63)
         vco_div_io_m = 63;
 
-    unsigned vco_div_io = vco_div_io_m & 0xfc; //Multiply of 4
+    //unsigned vco_div_io = vco_div_io_m & 0xfc; //Multiply of 4
+    unsigned vco_div_io = vco_div_io_m & 0xff; // & 0xfc; //Multiply of 4
     int res = 0;
     struct mmcm_config_raw cfg_raw;
     memset(&cfg_raw, 0, sizeof(cfg_raw));
 
-    if (vco_div_io * io_clk < MMCM_VCO_MIN) {
+    if (vco_div_io * io_clk < MMCM_VCO_MIN && vco_div_io < 63) {
         if ((vco_div_io + 2) * io_clk > MMCM_VCO_MAX) {
             vco_div_io += 1;
         } else {
@@ -908,16 +917,16 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
     }
 
     if (rxrate) {
+#if 0
         if (d->mmcm_rx) {
             res = res ? res : xsdr_configure_lml_mmcm_rx(d);
         }
-
+#endif
         sisosdrflag = d->base.lml_mode.rxsisoddr ? 8 : 0;
         res = res ? res : lowlevel_reg_wr32(dev, subdev, REG_CFG_PHY_0, 0x80000007 | sisosdrflag);
         usleep(100);
         res = res ? res : lowlevel_reg_wr32(dev, subdev, REG_CFG_PHY_0, 0x80000000 | sisosdrflag);
-
-
+#if 0
         if (d->mmcm_rx) {
             // Configure PHY (reset)
             // TODO phase search
@@ -938,6 +947,7 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
                 res = res ? res : mmcm_set_digdelay_raw(d->base.lmsstate.dev, d->base.lmsstate.subdev, DRP_MMCM_PORT_RX, CLKOUT_PORT_0, h);
             }
         }
+#endif
 
         // Switch to clock meas
         res = res ? res : lowlevel_reg_wr32(dev, subdev, REG_CFG_PHY_0, 0x02000000);
@@ -1797,6 +1807,7 @@ int xsdr_init(xsdr_dev_t *d)
     d->mmcm_tx = tx_mmcm;
     d->cfg_srate_siso_rx = 0;
     d->cfg_srate_siso_tx = 0;
+    d->dpump = false;
 
     res = lms7002m_init(&d->base, dev, 0, XSDR_INT_REFCLK);
     if (res)
@@ -1849,6 +1860,8 @@ int xsdr_dtor(xsdr_dev_t *d)
     res = (res) ? res : dev_gpo_set(dev, IGPO_LDOLMS_EN, 0);
     res = (res) ? res : dev_gpo_set(dev, IGPO_LED, 0);
 
+    res = (res) ? res : _xsdr_mmcm_pd(d);
+
     if (d->ssdr) {
         res = res ? res : lp8758_vout_set(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 1, 900);
         res = res ? res : lp8758_vout_ctrl(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 1, 0, 1);
@@ -1896,32 +1909,8 @@ int xsdr_prepare(xsdr_dev_t *d, bool rxen, bool txen)
                                  LMS7_CH_AB, 0,
                                  LMS7_CH_AB, 0);
 
-    //if (txen) {
-        // TODO: Add proper delay calibration
-        // assign cfg_rx_idelay_addr = ~igp_phydly[3:0];
-        // assign cfg_rx_idelay_data = { 1'b0, igp_phydly[7:4] };
-        // 0..11 D0..D11
-        // 12    IQSEL
-        // 13    *idle*
-        // 14    FCLK
-        // 15    *idle*
-   //     const unsigned coeff = 0x40;
-   //     res = (res) ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_PHYCAL, coeff | 1);
-   //     usleep(1);
-   //     res = (res) ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_PHYCAL, coeff | 0);
-   //     if (res) {
-   //        return res;
-   //     }
-    //}
 
-    // res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
-
-
-    //if (d->txrate) {
-        res = res ? res : _xsdr_calibrate_lml(d);
-    //}
-
-
+    res = res ? res : _xsdr_calibrate_lml(d);
     return res;
 }
 
