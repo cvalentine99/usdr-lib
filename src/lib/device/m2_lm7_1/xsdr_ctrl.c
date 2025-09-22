@@ -621,7 +621,8 @@ static int _xsdr_calibrate_txlfsr_check(xsdr_dev_t *d, unsigned check_to,
     res = res ? res : _xsdr_txserdes_reset(d);
     res = res ? res : usleep(1);
     res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
-    //res = res ? res : _xsdr_rxserdes_reset(d); // In case of RX-TX in the same MMCM
+    res = res ? res : _xsdr_rxserdes_reset(d); // In case of RX-TX in the same MMCM
+    res = res ? res : usleep(20);
     res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
     //res = res ? res : xsdr_phy_en_iqab_checker_mimo(d, true);
 
@@ -771,7 +772,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                 }
                 badness *= 1.0 * check_to / (w + 1); // Rescale
                 if (badness > badness_m * 2) {
-                    USDR_LOG("XDEV", USDR_LOG_INFO, "RePHASE_RX=%2d I=%2d [%6d/%6d/%6d/%6d] BD=%lld\n", phase_m - 1, w,
+                    USDR_LOG("XDEV", USDR_LOG_WARNING, "RePHASE_RX=%2d I=%2d [%6d/%6d/%6d/%6d] BD=%lld\n", phase_m - 1, w,
                              errs[0], errs[1], errs[2], errs[3], (long long)badness);
                     continue;
                 }
@@ -791,11 +792,14 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 
             uint64_t badness_m = UINT64_MAX;
             phase_m = 0;
-            for (unsigned rty = 0; rty < 64; rty++) {
+            for (unsigned rty = 0; rty < 8; rty++) {
+                const unsigned iq_phases[8] = { 0, 1, 2, 62, 63, 2, 1, 0};
+                unsigned iq_ph = iq_phases[rty];
+
                 for (unsigned ph = 1; ph < 65; ph++) {
                     //unsigned w;
                     uint64_t badness = UINT64_MAX;
-                    res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, rty);
+                    res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, iq_ph);
                     res = res ? res : _xsdr_calibrate_txlfsr_check(d, check_to, errs, &iqserrs, &badness);
 
                     USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d  [%6d/%6d/%6d/%6d - %6d] BD=%.3e\n", ph - 1,
@@ -816,8 +820,8 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                             if (iqserrs > 40) {
                                 USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
 
-                                res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph + 1, rty);
-                                res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, rty);
+                                res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph + 1, iq_ph);
+                                res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, iq_ph);
                                 // res = res ? res : lms7002m_limelight_l_reset(&d->base.lmsstate, false, true);
                                 res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
                                 res = res ? res : _xsdr_txserdes_reset(d);
