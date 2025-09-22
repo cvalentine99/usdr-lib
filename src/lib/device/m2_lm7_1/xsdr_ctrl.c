@@ -241,6 +241,15 @@ static int _xsdr_rxserdes_reset(xsdr_dev_t *d) {
     return res;
 }
 
+static int _xsdr_txserdes_reset(xsdr_dev_t *d) {
+    int res = 0;
+    // Reset OSERDESE2
+    res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 0);
+    res = res ? res : usleep(1);
+    res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 1);
+    return res;
+}
+
 int xsdr_override_drp(xsdr_dev_t *d, lsopaddr_t ls_op_addr,
                       size_t meminsz, void* pin, size_t memoutsz,
                       const void* pout)
@@ -596,11 +605,7 @@ int xsdr_txphase_ovr(xsdr_dev_t *d, unsigned v)
     d->tx_override_phase = v;
 
     res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, 0, 0);
-
-    // Reset OSERDESE2
-    res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 0);
-    res = res ? res : usleep(1);
-    res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 1);
+    res = res ? res : _xsdr_txserdes_reset(d);
 
     return res;
 }
@@ -613,12 +618,10 @@ static int _xsdr_calibrate_txlfsr_check(xsdr_dev_t *d, unsigned check_to,
     unsigned w;
 
     // Reset OSERDESE2
-    res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 0);
-    res = res ? res : usleep(1);
-    res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 1);
+    res = res ? res : _xsdr_txserdes_reset(d);
     res = res ? res : usleep(1);
     res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
-    res = res ? res : _xsdr_rxserdes_reset(d); // In case of RX-TX in the same MMCM
+    //res = res ? res : _xsdr_rxserdes_reset(d); // In case of RX-TX in the same MMCM
     res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
     //res = res ? res : xsdr_phy_en_iqab_checker_mimo(d, true);
 
@@ -639,8 +642,14 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 {
     int res = 0;
     bool mmcm_rx_only_path = (!d->base.tx_run[0] && !d->base.tx_run[1]);
+    bool old_rx_run[2] = { d->base.rx_run[0], d->base.rx_run[1] };
 
     if (d->mmcm_tx) {
+        if (!(d->base.rx_run[0] || d->base.rx_run[1])) {
+            res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_LMS_PWR, IGPO_LMS_PWR_LDOEN | IGPO_LMS_PWR_NRESET | IGPO_LMS_PWR_RXEN  | IGPO_LMS_PWR_TXEN);
+            res = res ? res : lms7002m_streaming_up(&d->base, RFIC_LMS7_RX, LMS7_CH_AB, 0, 0, 0);
+        }
+
         res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, 0, 0, 0);
         res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
         res = res ? res : _xsdr_rxserdes_reset(d);
@@ -806,14 +815,11 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 
                                 res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph + 1, rty);
                                 res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, rty);
-
-                                res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 0);
-                                res = res ? res : usleep(1);
-                                res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 1);
-                                res = res ? res : usleep(1);
-
                                 // res = res ? res : lms7002m_limelight_l_reset(&d->base.lmsstate, false, true);
                                 res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
+                                res = res ? res : _xsdr_txserdes_reset(d);
+                                res = res ? res : usleep(1);
+
                             } else if (g > 0) {
                                 USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
                                 break;
@@ -873,13 +879,18 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
     }
 
 no_tx:
-    res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_NORMAL);
+    if (!old_rx_run[0] && !old_rx_run[1]) {
+        // No RX, disable it
+        res = res ? res : lms7002m_streaming_down(&d->base, RFIC_LMS7_RX);
+    } else {
+        res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_NORMAL);
+    }
 
     // Reset TSP
-    if (true) {
-        res = res ? res : lms7002m_mac_set(&d->base.lmsstate, LMS7_CH_AB);
-        // res = res ? res : lms7002m_xxtsp_bst(&d->base.lmsstate, LMS_TXTSP);
-    }
+    //if (true) {
+    //   res = res ? res : lms7002m_mac_set(&d->base.lmsstate, LMS7_CH_AB);
+    //   // res = res ? res : lms7002m_xxtsp_bst(&d->base.lmsstate, LMS_TXTSP);
+    //}
 
     return res;
 }
