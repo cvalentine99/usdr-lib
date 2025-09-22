@@ -295,7 +295,7 @@ int xsdr_override_drp(xsdr_dev_t *d, lsopaddr_t ls_op_addr,
 static struct mmcm_config_raw g_tx_cfg_raw;
 
 
-int xsdr_upd_phase(xsdr_dev_t *d)
+int  xsdr_upd_phase(xsdr_dev_t *d)
 {
     if (d->tx_override_phase) {
         unsigned raw = d->tx_override_phase - 1;
@@ -404,7 +404,7 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
     //     cfg_raw.ports[CLKOUT_PORT_1].delay = raw / 8;
     // }
 
-    if (d->tx_override_phase || txphase) {
+    if (d->tx_override_phase || txphase || txphase_off) {
         unsigned raw = (txphase != 0) ? ((txphase - 1 + txphase_off) % 64) : d->tx_override_phase - 1;
         cfg_raw.ports[CLKOUT_PORT_6].phase = raw % 8;
         cfg_raw.ports[CLKOUT_PORT_6].delay = raw / 8;
@@ -647,6 +647,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
     if (d->mmcm_tx) {
         if (!(d->base.rx_run[0] || d->base.rx_run[1])) {
             res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_LMS_PWR, IGPO_LMS_PWR_LDOEN | IGPO_LMS_PWR_NRESET | IGPO_LMS_PWR_RXEN  | IGPO_LMS_PWR_TXEN);
+            res = res ? res : usleep(1000);
             res = res ? res : lms7002m_streaming_up(&d->base, RFIC_LMS7_RX, LMS7_CH_AB, 0, 0, 0);
         }
 
@@ -777,10 +778,10 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             }
 
         phase_calibrated:
-           if (mmcm_rx_only_path)
+            d->lmlcal_rx_phase = phase_m;
+            if (mmcm_rx_only_path)
                 goto no_tx;
 
-            d->lmlcal_rx_phase = phase_m;
             res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_DIGLOOPBACK);
             res = res ? res : xsdr_phy_en_lfsr_generator_mimo(d, true, true);
             res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
@@ -789,7 +790,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             uint64_t badness_m = UINT64_MAX;
             phase_m = 0;
             for (unsigned rty = 0; rty < 64; rty++) {
-                for (unsigned ph = 1; ph < 64; ph++) {
+                for (unsigned ph = 1; ph < 65; ph++) {
                     //unsigned w;
                     uint64_t badness = UINT64_MAX;
                     res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, rty);
