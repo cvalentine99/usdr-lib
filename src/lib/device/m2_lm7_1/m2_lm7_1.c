@@ -1244,6 +1244,10 @@ int usdr_device_m2_lm7_1_create_stream(device_t* dev, const char* sid, const cha
             // TODO: update samplerate settings
         }
 
+        if (d->double_pump) {
+            d->xdev.siso_sdr_active_rx = true;
+        }
+
         // Reset samplerate with proper bifurcation flags
         if (rxcfg.bifurcation_valid != ((d->xdev.s_flags & XSDR_LML_SISO_DDR_RX) ? true : false)) {
             res = xsdr_set_samplerate_ex(&d->xdev, d->xdev.s_rxrate, d->xdev.s_txrate,
@@ -1289,6 +1293,10 @@ int usdr_device_m2_lm7_1_create_stream(device_t* dev, const char* sid, const cha
             d->xdev.siso_sdr_active_tx = true;
             flags |= DMS_FLAG_BIFURCATION;
             // TODO: update samplerate settings
+        }
+
+        if (d->double_pump) {
+            d->xdev.siso_sdr_active_tx = true;
         }
 
         res = xsdr_prepare(&d->xdev, d->rx, true);

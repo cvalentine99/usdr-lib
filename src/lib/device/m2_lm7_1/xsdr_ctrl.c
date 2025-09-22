@@ -232,6 +232,15 @@ int xsdr_phy_en_lfsr_generator_mimo(xsdr_dev_t *d, bool en, bool lfsr)
     return res;
 }
 
+static int _xsdr_rxserdes_reset(xsdr_dev_t *d) {
+    int res = 0;
+    unsigned sisosdrflag = d->dpump ? 16 : d->base.lml_mode.rxsisoddr ? 8 : 0;
+    res = res ? res : lowlevel_reg_wr32(d->base.lmsstate.dev, d->base.lmsstate.subdev, REG_CFG_PHY_0, 0x80000007 | sisosdrflag);
+    res = res ? res : usleep(10);
+    res = res ? res : lowlevel_reg_wr32(d->base.lmsstate.dev, d->base.lmsstate.subdev, REG_CFG_PHY_0, 0x80000000 | sisosdrflag);
+    return res;
+}
+
 int xsdr_override_drp(xsdr_dev_t *d, lsopaddr_t ls_op_addr,
                       size_t meminsz, void* pin, size_t memoutsz,
                       const void* pout)
@@ -307,8 +316,9 @@ static int _xsdr_mmcm_pd(xsdr_dev_t *d)
 
 int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, unsigned txphase, unsigned txphase_off)
 {
-    bool nomul = (rx_master) ? d->base.lml_mode.rxsisoddr || (d->base.rxtsp_div > 1) :
-        d->base.lml_mode.txsisoddr || (d->base.txtsp_div > 1);
+    bool nomul = d->dpump ? false :
+        (rx_master) ? d->base.lml_mode.rxsisoddr || (d->base.rxtsp_div > 1) :
+                      d->base.lml_mode.txsisoddr || (d->base.txtsp_div > 1);
     unsigned mmcm_ctrl_sel = (rx_master) ? 0 : 4;
     unsigned tx_mclk = d->base.cgen_clk / d->base.txcgen_div / d->base.lml_mode.txdiv;
     unsigned rx_mclk = d->base.cgen_clk / d->base.rxcgen_div / d->base.lml_mode.rxdiv;
@@ -320,6 +330,9 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
 
     //unsigned vco_div_io = vco_div_io_m & 0xfc; //Multiply of 4
     unsigned vco_div_io = vco_div_io_m & 0xff; // & 0xfc; //Multiply of 4
+    if (!nomul) {
+        vco_div_io = vco_div_io_m & 0xfe;
+    }
     int res = 0;
     struct mmcm_config_raw cfg_raw;
     memset(&cfg_raw, 0, sizeof(cfg_raw));
@@ -404,7 +417,7 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
         cfg_raw.ports[CLKOUT_PORT_FB].period_l = vco_div_io;
         cfg_raw.ports[CLKOUT_PORT_FB].period_h = vco_div_io;
     }
-    USDR_LOG("XDEV", USDR_LOG_ERROR, "MMCM_TX set to MCLK = %.3f IOCLK = %.3f Mhz IODIV = %d FWDCLK_DELAY%s = %d (VCO %d) SISO_DDR=%d VCO=%.3f MHZ OFF=%d\n",
+    USDR_LOG("XDEV", USDR_LOG_INFO, "MMCM_TX set to MCLK = %.3f IOCLK = %.3f Mhz IODIV = %d FWDCLK_DELAY%s = %d (VCO %d) SISO_DDR=%d VCO=%.3f MHZ OFF=%d\n",
              tx_mclk / (1.0e6), io_clk / (1.0e6), vco_div_io,
              (d->tx_override_phase) ? "_OVR" : "",
              cfg_raw.ports[CLKOUT_PORT_0].delay, cfg_raw.ports[CLKOUT_PORT_0].phase,
@@ -568,6 +581,14 @@ static bool noerrors_v4(unsigned errs[4], uint64_t* badness)
     return errs[0] == 0 && errs[1] == 0 && errs[2] == 0 && errs[3] == 0;
 }
 
+static bool noerrors_v2(unsigned errs[4], uint64_t* badness)
+{
+    if (badness) {
+        *badness = (errs[0]*errs[0]) + (errs[1]*errs[1]);
+    }
+    return errs[0] == 0 && errs[1] == 0;
+}
+
 int xsdr_txphase_ovr(xsdr_dev_t *d, unsigned v)
 {
     int res = 0;
@@ -597,9 +618,9 @@ static int _xsdr_calibrate_txlfsr_check(xsdr_dev_t *d, unsigned check_to,
     res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_CTRL, 1);
     res = res ? res : usleep(1);
     res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
+    res = res ? res : _xsdr_rxserdes_reset(d); // In case of RX-TX in the same MMCM
     res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
     //res = res ? res : xsdr_phy_en_iqab_checker_mimo(d, true);
-
 
     for (w = 0; w < check_to; w++) {
         res = res ? res : usleep(100);
@@ -622,6 +643,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
     if (d->mmcm_tx) {
         res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, 0, 0, 0);
         res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
+        res = res ? res : _xsdr_rxserdes_reset(d);
 
         // Autocalibration if RX phase wasn't set
         if (d->rx_override_phase == 0) {
@@ -631,18 +653,15 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             unsigned iqserrs;
             unsigned errs[4] = { UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX };
 
-            for (unsigned rxrty = 0; rxrty < 4; rxrty++) {
-
-
             // Boost IO voltage for stable high speed link
-            if (!d->siso_sdr_active_rx && d->new_rev && d->s_rxrate > 85e6) {
+            if (!d->siso_sdr_active_rx && d->new_rev && d->ssdr && d->s_rxrate > 85e6) {
                 res = res ? res : xsdr_set_vio(d, 1910);
-            }
-            if (!d->siso_sdr_active_rx && !d->ssdr  && d->s_rxrate > 60e6) {
-                res = res ? res : xsdr_set_vio(d, 1910);
-                res = res ? res : lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, 1320);
+            } else if (!d->siso_sdr_active_rx && d->new_rev && !d->ssdr  && d->s_rxrate > 60e6) {
+                res = res ? res : xsdr_set_vio(d, 1940);
+                res = res ? res : lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, 1340);
             }
 
+            for (unsigned rxrty = 0; rxrty < 4; rxrty++) {
             uint64_t badness_m = UINT64_MAX;
             unsigned c;
 
@@ -654,13 +673,13 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             for (c = 0; c < check_to; c++) {
                 res = res ? res : usleep(1000);
                 res = res ? res : xsdr_phy_lfsr_mimo_state(d, LFSR_CNTR_BER, errs);
-                if (res || !noerrors_v4(errs, &badness_m))
+                if (res || (d->dpump ? !noerrors_v2(errs, &badness_m) : !noerrors_v4(errs, &badness_m)))
                     break;
             }
 
-            USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE=AUTO [%d/%d/%d/%d]\n",
-                     errs[0], errs[1], errs[2], errs[3]);
-            if (res || noerrors_v4(errs, &badness_m))
+            USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE=AUTO [%d/%d/%d/%d] DPUMP=%d res=%d\n",
+                     errs[0], errs[1], errs[2], errs[3], d->dpump, res);
+            if (res || (d->dpump ? noerrors_v2(errs, &badness_m) : noerrors_v4(errs, &badness_m)))
                 goto phase_calibrated;
 
 
@@ -680,12 +699,13 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                 res = res ? res : usleep(10);
                 res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, ph, 0, 0);
                 res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
+                res = res ? res : _xsdr_rxserdes_reset(d);
                 res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
 
                 for (w = 0; w < check_to; w++) {
                     res = res ? res : usleep(100);
                     res = res ? res : xsdr_phy_lfsr_mimo_state(d, LFSR_CNTR_BER, errs);
-                    if (res || !noerrors_v4(errs, &badness)) {
+                    if (res || (d->dpump ? !noerrors_v2(errs, &badness) : !noerrors_v4(errs, &badness))) {
                         break;
                     }
                 }
@@ -693,7 +713,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 
                 USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_RX=%2d I=%2d [%6d/%6d/%6d/%6d] BD=%lld\n", ph - 1, w,
                          errs[0], errs[1], errs[2], errs[3], (long long)badness);
-                if (res || noerrors_v4(errs, &badness)) {
+                if (res || (d->dpump ? noerrors_v2(errs, &badness) : noerrors_v4(errs, &badness))) {
                     phase_m = ph;
                     if (ph < phase_min)
                         phase_min = ph;
@@ -703,6 +723,8 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                     // Got more than 7 phases, we're safe; skip searching
                     if (phase_max - phase_min > 7)
                         break;
+                    if (d->s_rxrate > 60e6)
+                        goto phase_calibrated;
                 } else if (phase_max >= phase_min) {
                     break;
                 }
@@ -716,12 +738,6 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             if (phase_max > phase_min) {
                 phase_m = (phase_max + phase_min) / 2;
             }
-            //if (badness_m == 0)
-            //    break;
-            //
-            //USDR_LOG("XDEV", USDR_LOG_WARNING, " == RX RESETTING == \n");
-            //lms7002m_limelight_reset(d);
-            //}
 
             USDR_LOG("XDEV", USDR_LOG_WARNING, "Restoring RX pahse to %d (bandness=%" PRId64 ")  PH_MIN=%d PH_MAX=%d\n",
                      phase_m - 1, badness_m, phase_min, phase_max);
@@ -729,6 +745,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             // Try our best at least
             res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, phase_m, 0, 0);
             res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
+            res = res ? res : _xsdr_rxserdes_reset(d);
             res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
             {
                 uint64_t badness = UINT64_MAX;
@@ -736,7 +753,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                 for (w = 0; w < check_to; w++) {
                     res = res ? res : usleep(100);
                     res = res ? res : xsdr_phy_lfsr_mimo_state(d, LFSR_CNTR_BER, errs);
-                    if (res || !noerrors_v4(errs, &badness)) {
+                    if (res || (d->dpump ? !noerrors_v2(errs, &badness) : !noerrors_v4(errs, &badness))) {
                         break;
                     }
                 }
@@ -874,7 +891,7 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
 {
     lldev_t dev = d->base.lmsstate.dev;
     subdev_t subdev = d->base.lmsstate.subdev;
-    unsigned sisosdrflag;
+    // unsigned sisosdrflag;
     int res;
 
     if (!(((d->hwid) & 0xff) & PHY_CFG_VALID_MSK)) {
@@ -890,8 +907,8 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
         rxrate = 1e6;
     }
 
-    unsigned m_flags = flags | ((d->siso_sdr_active_rx && d->hwchans_rx == 1) ? XSDR_LML_SISO_DDR_RX : 0)
-                       | ((d->siso_sdr_active_tx && d->hwchans_tx == 1) ? XSDR_LML_SISO_DDR_TX : 0);
+    unsigned m_flags = flags | (((d->siso_sdr_active_rx && d->hwchans_rx == 1) || d->dpump) ? XSDR_LML_SISO_DDR_RX : 0)
+                       | (((d->siso_sdr_active_tx && d->hwchans_tx == 1) || d->dpump) ? XSDR_LML_SISO_DDR_TX : 0);
 
     res = lms7002m_samplerate(&d->base, rxrate, txrate, adcclk, dacclk, m_flags, d->rx_port_is_1);
     if (res)
@@ -922,10 +939,12 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
             res = res ? res : xsdr_configure_lml_mmcm_rx(d);
         }
 #endif
-        sisosdrflag = d->base.lml_mode.rxsisoddr ? 8 : 0;
+#if 0
+        sisosdrflag = d->dpump ? 16 : d->base.lml_mode.rxsisoddr ? 8 : 0;
         res = res ? res : lowlevel_reg_wr32(dev, subdev, REG_CFG_PHY_0, 0x80000007 | sisosdrflag);
         usleep(100);
         res = res ? res : lowlevel_reg_wr32(dev, subdev, REG_CFG_PHY_0, 0x80000000 | sisosdrflag);
+#endif
 #if 0
         if (d->mmcm_rx) {
             // Configure PHY (reset)
