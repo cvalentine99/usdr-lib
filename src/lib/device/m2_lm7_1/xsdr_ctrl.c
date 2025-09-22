@@ -339,9 +339,9 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
 
     //unsigned vco_div_io = vco_div_io_m & 0xfc; //Multiply of 4
     unsigned vco_div_io = vco_div_io_m & 0xff; // & 0xfc; //Multiply of 4
-    if (!nomul) {
-        vco_div_io = vco_div_io_m & 0xfe;
-    }
+    //if (!nomul) {
+    //    vco_div_io = vco_div_io_m & 0xfe;
+    //}
     int res = 0;
     struct mmcm_config_raw cfg_raw;
     memset(&cfg_raw, 0, sizeof(cfg_raw));
@@ -710,6 +710,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                 res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, ph, 0, 0);
                 res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
                 res = res ? res : _xsdr_rxserdes_reset(d);
+                res = res ? res : usleep(10);
                 res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
 
                 for (w = 0; w < check_to; w++) {
@@ -756,6 +757,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, phase_m, 0, 0);
             res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
             res = res ? res : _xsdr_rxserdes_reset(d);
+            res = res ? res : usleep(10);
             res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
             {
                 uint64_t badness = UINT64_MAX;
