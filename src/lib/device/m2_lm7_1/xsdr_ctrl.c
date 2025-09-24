@@ -323,6 +323,7 @@ static int _xsdr_mmcm_pd(xsdr_dev_t *d)
     return xsdr_phy_tx_reg(d, PHY_REG_MMCM_CTRL, 2);
 }
 
+static int g_clk_reduce = 0;
 int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, unsigned txphase, unsigned txphase_off)
 {
     bool nomul = d->dpump ? false :
@@ -334,6 +335,9 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
     unsigned io_mclk = (rx_master) ? rx_mclk : tx_mclk;
     unsigned io_clk  = (nomul) ? io_mclk : io_mclk * 2;
     unsigned vco_div_io_m = (MMCM_VCO_MAX  + io_clk - 1) / io_clk;
+
+    vco_div_io_m += g_clk_reduce;
+
     if (vco_div_io_m > 63)
         vco_div_io_m = 63;
 
@@ -365,9 +369,16 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
     // 5 - FCLK_RX
     // 6 - FCLK_TX
 
+#define SEP_CLKDIV
+
     cfg_raw.type = MT_7SERIES_MMCM;
+#ifndef SEP_CLKDIV
     cfg_raw.ports[CLKOUT_PORT_0].period_l = (vco_div_io + 1) / 2; // IO_TX_IQSEL
     cfg_raw.ports[CLKOUT_PORT_0].period_h = vco_div_io / 2;       // IO_TX_IQSEL
+#else
+    cfg_raw.ports[CLKOUT_PORT_0].period_l = vco_div_io;           // IO_TX CLKDIV
+    cfg_raw.ports[CLKOUT_PORT_0].period_h = vco_div_io;           // IO_TX CLKDIV
+#endif
     cfg_raw.ports[CLKOUT_PORT_1].period_l = (vco_div_io + 1) / 2; // IO_TX
     cfg_raw.ports[CLKOUT_PORT_1].period_h = vco_div_io / 2;       // IO_TX
 
@@ -385,19 +396,26 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
 
     unsigned total_budget = 8 * vco_div_io;
     unsigned phase = (((tx_mclk < 2*35e6) || (tx_mclk > 2*60e6)) ? 4 : 5) * total_budget / 6;
-    unsigned phase_iq = 4;
+    unsigned phase_iq = 0; //4;
 
     cfg_raw.ports[CLKOUT_PORT_6].phase = phase % 8;
     cfg_raw.ports[CLKOUT_PORT_6].delay = phase / 8;
+
+#ifndef SEP_CLKDIV
     cfg_raw.ports[CLKOUT_PORT_0].phase = phase_iq % 8;
     cfg_raw.ports[CLKOUT_PORT_0].delay = phase_iq / 8;
 
-    if (d->tx_override_phase_iq || txphase) {
-        unsigned raw = (txphase != 0) ? txphase - 1 : d->tx_override_phase_iq - 1;
+    if (d->tx_override_phase_iq || txphase || txphase_off) {
+        //unsigned raw = (txphase != 0) ? txphase - 1 : d->tx_override_phase_iq - 1;
+
+        unsigned raw = (txphase != 0) ? txphase_off : d->tx_override_phase_iq - 1;
         cfg_raw.ports[CLKOUT_PORT_0].phase = raw % 8;
         cfg_raw.ports[CLKOUT_PORT_0].delay = raw / 8;
     }
-
+#else
+    cfg_raw.ports[CLKOUT_PORT_0].phase = 0;
+    cfg_raw.ports[CLKOUT_PORT_0].delay = 0;
+#endif
     // if (d->tx_override_phase || txphase) {
     //     unsigned raw = (txphase != 0) ? txphase - 1 : d->tx_override_phase - 1;
     //     cfg_raw.ports[CLKOUT_PORT_1].phase = raw % 8;
@@ -405,7 +423,9 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
     // }
 
     if (d->tx_override_phase || txphase || txphase_off) {
-        unsigned raw = (txphase != 0) ? ((txphase - 1 + txphase_off) % 64) : d->tx_override_phase - 1;
+        //unsigned raw = (txphase != 0) ? ((txphase - 1 + txphase_off) % 64) : d->tx_override_phase - 1;
+
+        unsigned raw = (txphase != 0) ? (txphase - 1) : d->tx_override_phase - 1;
         cfg_raw.ports[CLKOUT_PORT_6].phase = raw % 8;
         cfg_raw.ports[CLKOUT_PORT_6].delay = raw / 8;
     }
@@ -645,12 +665,27 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
     bool mmcm_rx_only_path = (!d->base.tx_run[0] && !d->base.tx_run[1]);
     bool old_rx_run[2] = { d->base.rx_run[0], d->base.rx_run[1] };
 
+    uint64_t rx_badness = UINT64_MAX;
+    uint64_t tx_badness = UINT64_MAX;
+    unsigned tx_iqerrs = UINT_MAX;
+
+    g_clk_reduce = 0;
+
     if (d->mmcm_tx) {
+        // Boost IO voltage for stable high speed link
+        if (!d->siso_sdr_active_rx && d->new_rev && d->ssdr && d->s_rxrate > 85e6) {
+            res = res ? res : xsdr_set_vio(d, 1910);
+        } else if (!d->siso_sdr_active_rx && d->new_rev && !d->ssdr  && d->s_rxrate > 50e6) {
+            res = res ? res : xsdr_set_vio(d, 1940);
+            res = res ? res : lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, 1340);
+        }
+
         if (!(d->base.rx_run[0] || d->base.rx_run[1])) {
             res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_LMS_PWR, IGPO_LMS_PWR_LDOEN | IGPO_LMS_PWR_NRESET | IGPO_LMS_PWR_RXEN  | IGPO_LMS_PWR_TXEN);
             res = res ? res : usleep(1000);
             res = res ? res : lms7002m_streaming_up(&d->base, RFIC_LMS7_RX, LMS7_CH_AB, 0, 0, 0);
         }
+
 
         res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, 0, 0, 0);
         res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
@@ -664,20 +699,13 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             unsigned iqserrs;
             unsigned errs[4] = { UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX };
 
-            // Boost IO voltage for stable high speed link
-            if (!d->siso_sdr_active_rx && d->new_rev && d->ssdr && d->s_rxrate > 85e6) {
-                res = res ? res : xsdr_set_vio(d, 1910);
-            } else if (!d->siso_sdr_active_rx && d->new_rev && !d->ssdr  && d->s_rxrate > 60e6) {
-                res = res ? res : xsdr_set_vio(d, 1940);
-                res = res ? res : lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, 1340);
-            }
 
             for (unsigned rxrty = 0; rxrty < 4; rxrty++) {
             uint64_t badness_m = UINT64_MAX;
             unsigned c;
 
             phase_m = 0;
-
+#if 0
             res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_LFSR);
             res = res ? res : usleep(10);
             res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
@@ -693,6 +721,8 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             if (res || (d->dpump ? noerrors_v2(errs, &badness_m) : noerrors_v4(errs, &badness_m)))
                 goto phase_calibrated;
 
+#endif
+            res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_LFSR);
 
             int phase_min;
             int phase_max;
@@ -735,8 +765,10 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                     // Got more than 7 phases, we're safe; skip searching
                     if (phase_max - phase_min > 7)
                         break;
-                    if (d->s_rxrate > 60e6)
-                        goto phase_calibrated;
+                    //if (d->s_rxrate > 60e6) {
+                    //    rx_badness = badness;
+                    //    goto phase_calibrated;
+                    //}
                 } else if (phase_max >= phase_min) {
                     break;
                 }
@@ -771,17 +803,22 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                     }
                 }
                 badness *= 1.0 * check_to / (w + 1); // Rescale
-                if (badness > badness_m * 2) {
+                rx_badness = badness;
+                if (badness > 100 /*badness_m * 2*/) {
                     USDR_LOG("XDEV", USDR_LOG_WARNING, "RePHASE_RX=%2d I=%2d [%6d/%6d/%6d/%6d] BD=%lld\n", phase_m - 1, w,
                              errs[0], errs[1], errs[2], errs[3], (long long)badness);
+
+                    g_clk_reduce++;
                     continue;
                 }
             }
+
             break;
             }
 
         phase_calibrated:
             d->lmlcal_rx_phase = phase_m;
+
             if (mmcm_rx_only_path)
                 goto no_tx;
 
@@ -790,7 +827,10 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
             //res = res ? res : xsdr_phy_en_iqab_checker_mimo(d, true);
 
+            bool mmcx_rx_path = false;
+            bool check_rx = false;
             uint64_t badness_m = UINT64_MAX;
+            unsigned failed_rxcnt = 0;
             phase_m = 0;
             for (unsigned rty = 0; rty < 8; rty++) {
                 const unsigned iq_phases[8] = { 0, 1, 2, 62, 63, 2, 1, 0};
@@ -799,15 +839,37 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                 for (unsigned ph = 1; ph < 65; ph++) {
                     //unsigned w;
                     uint64_t badness = UINT64_MAX;
-                    res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, iq_ph);
+                    res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcx_rx_path, d->lmlcal_rx_phase, ph, iq_ph);
+                    if (check_rx) {
+                        res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_LFSR);
+                        res = res ? res : lms7002m_limelight_fifo_reset(&d->base.lmsstate, true, true);
+                        res = res ? res : _xsdr_rxserdes_reset(d);
+                        res = res ? res : usleep(10);
+                        res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
+                        res = res ? res : usleep(100);
+                        res = res ? res : xsdr_phy_lfsr_mimo_state(d, LFSR_CNTR_BER, errs);
+                        if (res || (d->dpump ? !noerrors_v2(errs, &badness) : !noerrors_v4(errs, &badness))) {
+                            USDR_LOG("XDEV", USDR_LOG_WARNING, "FAIL_PHASE_RX=%2d PH=%2d [%6d/%6d/%6d/%6d] BD=%lld\n", d->lmlcal_rx_phase, ph - 1,
+                                     errs[0], errs[1], errs[2], errs[3], (long long)badness);
+                            if (badness > 20) {
+                                if (failed_rxcnt < 6) {
+                                    ph--;
+                                    failed_rxcnt++;
+                                    continue;
+                                }
+                            }
+                        }
+                        res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_DIGLOOPBACK);
+                        failed_rxcnt = 0;
+                    }
                     res = res ? res : _xsdr_calibrate_txlfsr_check(d, check_to, errs, &iqserrs, &badness);
 
                     USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d  [%6d/%6d/%6d/%6d - %6d] BD=%.3e\n", ph - 1,
                              errs[0], errs[1], errs[2], errs[3], iqserrs, (double)badness);
-                    if (res || (noerrors_v4(errs, &badness) && (iqserrs == 0))) {
+                    if (res || (noerrors_v4(errs, &badness) /* && (iqserrs == 0)*/) || (rty > 1 && badness < 20)) {
                         phase_m = ph;
 
-                        for (int g = 0; g < 50; g++) {
+                        for (int g = 0; g < 12/*50*/; g++) {
                             // Check A/B & I/Q aligment is ok
                             res = res ? res : xsdr_phy_en_lfsr_generator_mimo(d, true, false);
                             res = res ? res : usleep(10);
@@ -817,15 +879,25 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                             if (res)
                                 return res;
 
-                            if (iqserrs > 40) {
-                                USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
+                            if (rty == 0 && iqserrs != 0 || iqserrs > 40) {
+                                USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX[%d]=%2d ABIQ=%d\n", g, ph - 1, iqserrs);
 
-                                res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph + 1, iq_ph);
-                                res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, ph, iq_ph);
-                                // res = res ? res : lms7002m_limelight_l_reset(&d->base.lmsstate, false, true);
+                                //goto phase_tx_calibrated;
+                                unsigned msk[12] = { 0b1100, 0b0110, 0b0011, 0b1001,   0b1000, 0b0100, 0b0010, 0b0001,  0b1100, 0b0110, 0b1001, 0b1100 };
+
+                                res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_IQSEL, d->base.lml_mode.txsisoddr ? 0b1010 : msk[g + 1]);
+                                //res = res ? res : _xsdr_txserdes_reset(d);
+                                res = res ? res : usleep(10);
                                 res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
-                                res = res ? res : _xsdr_txserdes_reset(d);
-                                res = res ? res : usleep(1);
+                                res = res ? res : usleep(10);
+
+                                //res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcx_rx_path, d->lmlcal_rx_phase, ph + 1, iq_ph);
+                                //res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcx_rx_path, d->lmlcal_rx_phase, ph, iq_ph);
+                                // res = res ? res : lms7002m_limelight_l_reset(&d->base.lmsstate, false, true);
+                                //res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
+                                //res = res ? res : _xsdr_txserdes_reset(d);
+                                //res = res ? res : _xsdr_rxserdes_reset(d);
+                                //res = res ? res : usleep(10);
 
                             } else if (g > 0) {
                                 USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
@@ -833,11 +905,14 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                             }
                         }
 
-                        if (iqserrs > 40) {
+                        if (rty == 0 && iqserrs != 0 || iqserrs > 40) {
                             USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
                             res = res ? res : xsdr_phy_en_lfsr_generator_mimo(d, true, true);
                             continue;
                         }
+
+                        tx_badness = badness;
+                        tx_iqerrs = iqserrs;
                         goto phase_tx_calibrated;
                     }
 
@@ -849,12 +924,13 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                 }
                 // Try to toggle clock inversion
                 res = res ? res : lms7002m_limelight_toggle_ntx(&d->base.lmsstate);
+                check_rx = true;
             }
             USDR_LOG("XDEV", USDR_LOG_WARNING, "Restoring TX pahse to %d (bandness=%" PRId64 ")\n",
                      phase_m, badness_m);
 
             // Try our best at least
-            res = res ? res : xsdr_configure_lml_mmcm_tx(d, false, d->lmlcal_rx_phase, phase_m, ph_ty_m);
+            res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcx_rx_path, d->lmlcal_rx_phase, phase_m, ph_ty_m);
 
             // Make sure it's a good value
             res = res ? res : _xsdr_calibrate_txlfsr_check(d, check_to, errs, &iqserrs, &badness_m);
@@ -869,6 +945,9 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             res = res ? res : xsdr_phy_lfsr_mimo_state_s(d, LFSR_CNTR_IQS << 2, &iqserrs2);
             if (res)
                 return res;
+
+            tx_badness = badness_m;
+            tx_iqerrs = iqserrs2;
 
             USDR_LOG("XDEV", USDR_LOG_INFO, "RESTORE PHASE_TX=%2d  [%6d/%6d/%6d/%6d - %6d - %6d] BD=%.3e\n", phase_m - 1,
                      errs[0], errs[1], errs[2], errs[3], iqserrs, iqserrs2, (double)badness_m);
@@ -893,12 +972,11 @@ no_tx:
         res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_NORMAL);
     }
 
-    // Reset TSP
-    //if (true) {
-    //   res = res ? res : lms7002m_mac_set(&d->base.lmsstate, LMS7_CH_AB);
-    //   // res = res ? res : lms7002m_xxtsp_bst(&d->base.lmsstate, LMS_TXTSP);
-    //}
-
+    if (rx_badness || !mmcm_rx_only_path && (tx_badness || tx_iqerrs)) {
+        bool severe = (rx_badness > 100) || (!mmcm_rx_only_path && (tx_badness > 100 || tx_iqerrs > 10));
+        USDR_LOG("XDEV", severe ? USDR_LOG_ERROR : USDR_LOG_WARNING, "LML Calibration failed: RX_BADNESS=%"PRId64" TX_BADNESS=%"PRId64" TX_IQERRS=%d\n",
+                 rx_badness, mmcm_rx_only_path ? 0 : tx_badness, mmcm_rx_only_path ? 0 : tx_iqerrs);
+    }
     return res;
 }
 
