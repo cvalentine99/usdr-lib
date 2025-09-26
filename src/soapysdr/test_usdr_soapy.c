@@ -1,38 +1,60 @@
 // Copyright (c) 2023-2024 Wavelet Lab
 // SPDX-License-Identifier: MIT
 
-#include <SoapySDR/Device.h>
-#include <SoapySDR/Formats.h>
-#include <SoapySDR/Version.h>
+
 #include <stdio.h> //printf
 #include <stdlib.h> //free
 #include <complex.h>
 #include <unistd.h>
+#include <SoapySDR/Device.h>
+#include <SoapySDR/Formats.h>
+#include <SoapySDR/Version.h>
 
 #define MAX_CHANS       16
-#define MAX_PACKETSIZE  4096
+#define MAX_PACKETSIZE  1024 * 1024
+
+void decToString(int val, char* buf)
+{
+    snprintf(buf, 31, "%d", val);
+}
+
+float buff[2 * MAX_CHANS * MAX_PACKETSIZE];
 
 int main(int argc, char** argv)
 {
     int opt;
     const char* device = "";
     unsigned channels = 1;
+    unsigned packetSize = 131072;
+    unsigned samplerate = 4e6;
+    double rxFreq = 912.3e6;
 
     size_t act_channels[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 
-    while ((opt = getopt(argc, argv, "d:c:")) != -1) {
+    while ((opt = getopt(argc, argv, "d:c:i:r:")) != -1) {
         switch (opt) {
+        case 'r':
+            samplerate = atof(optarg);
+            break;
         case 'd':
             device = optarg;
             break;
         case 'c':
             channels = atoi(optarg);
             break;
+        case 'i':
+            packetSize = atoi(optarg);
+            break;
         }
     }
 
     if (channels == 0 || channels > MAX_CHANS) {
         printf("Number of channels should be in range [1;%d]!\n", MAX_CHANS);
+        exit(1);
+    }
+
+    if (packetSize == 0 || packetSize > MAX_PACKETSIZE) {
+        printf("Incorrect packet size!\n");
         exit(1);
     }
 
@@ -94,11 +116,13 @@ int main(int argc, char** argv)
     free(ranges);
 
     //apply settings
-    if (SoapySDRDevice_setSampleRate(sdr, SOAPY_SDR_RX, 0, 1e6) != 0) {
+    if (SoapySDRDevice_setSampleRate(sdr, SOAPY_SDR_RX, 0, samplerate) != 0) {
         printf("setSampleRate fail: %s\n", SoapySDRDevice_lastError());
+        exit(1);
     }
-    if (SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_RX, 0, 912.3e6, NULL) != 0) {
+    if (SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_RX, 0, rxFreq, NULL) != 0) {
         printf("setFrequency fail: %s\n", SoapySDRDevice_lastError());
+        exit(1);
     }
 
     ranges = SoapySDRDevice_getFrequencyRangeComponent(sdr, SOAPY_SDR_RX, 0, "BB", &length);
@@ -110,18 +134,25 @@ int main(int argc, char** argv)
     free(ranges);
 
     //setup a stream (complex floats)
+    char packetSizeStr[32];
+    decToString(packetSize, packetSizeStr);
+    SoapySDRKwargs streamArgs = {};
+    SoapySDRKwargs_set(&streamArgs, "bufferLength", packetSizeStr);
+
     SoapySDRStream *rxStream;
 #if (SOAPY_SDR_API_VERSION < 0x00080000)
-    if (SoapySDRDevice_setupStream(sdr, &rxStream, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, NULL) != 0) {
+    if (SoapySDRDevice_setupStream(sdr, &rxStream, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, &streamArgs) != 0) {
 #else
-    if ((rxStream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, NULL)) != NULL) {
+    if ((rxStream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, &streamArgs)) != NULL) {
 #endif
         printf("setupStream fail: %s\n", SoapySDRDevice_lastError());
+        exit(1);
     }
     SoapySDRDevice_activateStream(sdr, rxStream, 0, 0, 0); //start streaming
+    SoapySDRKwargs_clear(&streamArgs);
+
 
     //create a re-usable buffer for rx samples
-    float buff[2 * MAX_CHANS * MAX_PACKETSIZE];
     void* buffs[MAX_CHANS];
     for (unsigned j = 0; j < MAX_CHANS; j++) {
         buffs[j] = &buff[2 * j * MAX_PACKETSIZE];
@@ -131,7 +162,7 @@ int main(int argc, char** argv)
     for (size_t i = 0; i < 10; i++) {
         int flags; //flags set by receive operation
         long long timeNs; //timestamp for receive buffer
-        int ret = SoapySDRDevice_readStream(sdr, rxStream, buffs, MAX_PACKETSIZE, &flags, &timeNs, 100000);
+        int ret = SoapySDRDevice_readStream(sdr, rxStream, buffs, packetSize, &flags, &timeNs, 100000);
         printf("ret=%d, flags=%d, timeNs=%lld\n", ret, flags, timeNs);
     }
 
