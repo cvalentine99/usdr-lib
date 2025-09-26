@@ -21,6 +21,7 @@ START_TEST(lmx2820_solver_test1)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test2)
 {
@@ -32,6 +33,7 @@ START_TEST(lmx2820_solver_test2)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test3)
 {
@@ -43,6 +45,7 @@ START_TEST(lmx2820_solver_test3)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test4)
 {
@@ -54,6 +57,7 @@ START_TEST(lmx2820_solver_test4)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test5)
 {
@@ -65,6 +69,7 @@ START_TEST(lmx2820_solver_test5)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test6)
 {
@@ -76,6 +81,7 @@ START_TEST(lmx2820_solver_test6)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test7)
 {
@@ -87,6 +93,7 @@ START_TEST(lmx2820_solver_test7)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test8)
 {
@@ -98,6 +105,7 @@ START_TEST(lmx2820_solver_test8)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test9_force_mult)
 {
@@ -109,6 +117,7 @@ START_TEST(lmx2820_solver_test9_force_mult)
     int res = lmx2820_solver(&st, osc_in, mash_order, _i, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test10_mash_order)
 {
@@ -119,6 +128,7 @@ START_TEST(lmx2820_solver_test10_mash_order)
     int res = lmx2820_solver(&st, osc_in, _i, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test11_mash_order)
 {
@@ -129,6 +139,7 @@ START_TEST(lmx2820_solver_test11_mash_order)
     int res = lmx2820_solver(&st, osc_in, _i, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test12_instcal)
 {
@@ -145,6 +156,7 @@ START_TEST(lmx2820_solver_test12_instcal)
     res = lmx2820_solver_instcal(&st, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test13_pesync)
 {
@@ -156,6 +168,7 @@ START_TEST(lmx2820_solver_test13_pesync)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx2820_solver_test14_pesync)
 {
@@ -172,6 +185,7 @@ START_TEST(lmx2820_solver_test14_pesync)
     int res = lmx2820_solver(&st, osc_in, mash_order, 0, out_freq1, out_freq2);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 
 Suite * lmx2820_solver_suite(void)

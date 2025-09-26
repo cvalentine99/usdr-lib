@@ -53,6 +53,7 @@ START_TEST(lmx1204_solver_test1)
     int res = lmx1204_solver(&st, false, true);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx1204_solver_test2)
 {
@@ -68,6 +69,7 @@ START_TEST(lmx1204_solver_test2)
     int res = lmx1204_solver(&st, false, true);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx1204_solver_test3)
 {
@@ -84,6 +86,7 @@ START_TEST(lmx1204_solver_test3)
     int res = lmx1204_solver(&st, false, true);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx1204_solver_test4)
 {
@@ -99,6 +102,7 @@ START_TEST(lmx1204_solver_test4)
     int res = lmx1204_solver(&st, false, true);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmx1204_solver_test5)
 {
@@ -115,6 +119,7 @@ START_TEST(lmx1204_solver_test5)
     int res = lmx1204_solver(&st, false, true);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 Suite * lmx1204_solver_suite(void)
 {

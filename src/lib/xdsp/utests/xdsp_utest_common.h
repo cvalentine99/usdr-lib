@@ -12,6 +12,10 @@
 #include "../../cal/opt_func.h"
 #include "conv.h"
 
+// tcase_set_tags() was introduced in check 0.11.0
+#if CHECK_MINOR_VERSION < 11
+#define tcase_set_tags(x, y)
+#endif
 
 #define ALIGN_BYTES (size_t)64
 

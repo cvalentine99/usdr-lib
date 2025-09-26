@@ -41,6 +41,7 @@ START_TEST(lmk05318_solver_test1)
     int res = lmk05318_solver(&dev, cfg, SIZEOF_ARRAY(cfg));
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_solver_test3)
 {
@@ -76,6 +77,7 @@ START_TEST(lmk05318_solver_test3)
     res = lmk05318_solver(&dev, cfg, SIZEOF_ARRAY(cfg));
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_solver_test4)
 {
@@ -117,6 +119,7 @@ START_TEST(lmk05318_solver_test4)
     res = lmk05318_solver(&dev, cfg + 4, 4);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_solver_test5)
 {
@@ -138,6 +141,7 @@ START_TEST(lmk05318_solver_test5)
     ck_assert_int_eq( res, 0 );
 
 }
+END_TEST
 
 START_TEST(lmk05318_solver_pesync)
 {
@@ -168,6 +172,7 @@ START_TEST(lmk05318_solver_pesync)
     ck_assert_int_eq( res, 0 );
 
 }
+END_TEST
 
 START_TEST(lmk05318_solver_pesync_free_run)
 {
@@ -188,6 +193,7 @@ START_TEST(lmk05318_solver_pesync_free_run)
     res = lmk05318_create(NULL, 0, 0, 25000000, XO_CMOS, false, NULL, cfg, SIZEOF_ARRAY(cfg), &st, true /*dry_run*/);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_dpll_test1)
 {
@@ -204,6 +210,7 @@ START_TEST(lmk05318_dpll_test1)
     int res = lmk05318_dpll_config(&dev, &dpll);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_dsdr_test1)
 {
@@ -235,6 +242,7 @@ START_TEST(lmk05318_dsdr_test1)
     res = lmk05318_create(NULL, 0, 0, 26000000, XO_CMOS, false, &dpll, cfg, SIZEOF_ARRAY(cfg), &st, true /*dry_run*/);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_dsdr_test2)
 {
@@ -266,6 +274,7 @@ START_TEST(lmk05318_dsdr_test2)
     res = lmk05318_create(NULL, 0, 0, 26000000, XO_CMOS, false, &dpll, cfg, SIZEOF_ARRAY(cfg), &st, true /*dry_run*/);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_dsdr_test3)
 {
@@ -287,6 +296,7 @@ START_TEST(lmk05318_dsdr_test3)
     res = lmk05318_create(NULL, 0, 0, 26000000, XO_CMOS, false, NULL, cfg, SIZEOF_ARRAY(cfg), &st, true /*dry_run*/);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 
 static int simplesync_pd_low_chs(lmk05318_state_t* st)
@@ -367,6 +377,7 @@ START_TEST(lmk05318_simplesync_test1)
     res = lmk05318_simplesync_set_lo_freq(&st, 0);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_solver_test_xmass)
 {
@@ -417,6 +428,7 @@ START_TEST(lmk05318_solver_test_xmass)
     res = res ? res : lmk05318_reg_wr_from_map(&st, true);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_hyper_test1)
 {
@@ -438,6 +450,7 @@ START_TEST(lmk05318_hyper_test1)
     res = lmk05318_create(NULL, 0, 0, 52000000, XO_CMOS, false, NULL, cfg, SIZEOF_ARRAY(cfg), &st, true /*dry_run*/);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 START_TEST(lmk05318_customer_test1)
 {
@@ -459,6 +472,7 @@ START_TEST(lmk05318_customer_test1)
     res = lmk05318_create(NULL, 0, 0, 52000000, XO_CMOS, false, NULL, cfg, SIZEOF_ARRAY(cfg), &st, true /*dry_run*/);
     ck_assert_int_eq( res, 0 );
 }
+END_TEST
 
 
 Suite * lmk05318_solver_suite(void)
