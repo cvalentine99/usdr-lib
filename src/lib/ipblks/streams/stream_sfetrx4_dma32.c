@@ -87,6 +87,8 @@ struct stream_sfetrx_dma32 {
     } storage;
 
     extxcfg_cache_t cstx4;
+
+    uint64_t hw_pwr_mask; // Powered chans (hw)
 };
 typedef struct stream_sfetrx_dma32 stream_sfetrx_dma32_t;
 
@@ -678,6 +680,7 @@ static int initialize_stream_rx_32(device_t* device,
 {
     int res;
     stream_sfetrx_dma32_t* strdev;
+    uint64_t hw_chan_msk = 0;
 
     res = dma_rx32_reset(device->dev, 0, sx_base);
     if (res)
@@ -753,7 +756,7 @@ static int initialize_stream_rx_32(device_t* device,
     // TODO obtain exfe configuration constants
     res = (fecfg->cfg_fecore_id == CORE_EXFERX_DMA32_R0) ?
         exfe_rx4_configure(fecfg, &sc, &fc) :
-        sfe_rx4_configure(fecfg, &sc, &fc);
+        sfe_rx4_configure(fecfg, &sc, &fc, &hw_chan_msk);
     if (res)
         return res;
 
@@ -829,8 +832,10 @@ static int initialize_stream_rx_32(device_t* device,
     strdev->fe_complex = bfmt.complex;
     strdev->storage.srx4 = *fecfg;
 
-    USDR_LOG("DSTR", USDR_LOG_INFO, "RX: Samples=%d Bps=%d WireBytes=%d HostBytes=%d Bursts=%d\n",
-             strdev->pkt_symbs, strdev->wire_bps, strdev->pkt_bytes, strdev->host_bytes, strdev->burst_count);
+    strdev->hw_pwr_mask = hw_chan_msk;
+
+    USDR_LOG("DSTR", USDR_LOG_INFO, "RX: Samples=%d Bps=%d WireBytes=%d HostBytes=%d Bursts=%d PwrMask=%"PRIx64"\n",
+             strdev->pkt_symbs, strdev->wire_bps, strdev->pkt_bytes, strdev->host_bytes, strdev->burst_count, strdev->hw_pwr_mask);
 
     *outu = strdev;
     return 0;
@@ -882,7 +887,7 @@ static int initialize_stream_tx_32(device_t* device,
 {
     int res;
     stream_sfetrx_dma32_t* strdev;
-
+    uint64_t pwr_hw_mask = 0;
     struct stream_config sc;
     unsigned logicchs = chcount;
 
@@ -975,6 +980,7 @@ static int initialize_stream_tx_32(device_t* device,
         }
 
         fe_old_tx_mute = (sc.chcnt == 1) ? (fe_old_tx_swap ? 1 : 2) : 0;
+        pwr_hw_mask = (sc.chcnt == 2) ? 0b1111 : (fe_old_tx_swap ? 0b1100 : 0b0011);
     } else {
         if (sc.chcnt > (fecfg->cfg_raw_chans / (bfmt.complex ? 2 : 1)))
             return -EINVAL;
@@ -1111,8 +1117,9 @@ static int initialize_stream_tx_32(device_t* device,
     strdev->storage.srx4 = *fecfg;
     extxcfg_cache_init(&strdev->cstx4);
 
-    USDR_LOG("DSTR", USDR_LOG_INFO, "TX: Samples=%d Bps=%d WireBytes=%d HostBytes=%d Bursts=%d\n",
-             strdev->pkt_symbs, strdev->wire_bps, strdev->pkt_bytes, strdev->host_bytes, strdev->burst_count);
+    strdev->hw_pwr_mask = pwr_hw_mask;
+    USDR_LOG("DSTR", USDR_LOG_INFO, "TX: Samples=%d Bps=%d WireBytes=%d HostBytes=%d Bursts=%d PwrMask=%"PRIx64"\n",
+             strdev->pkt_symbs, strdev->wire_bps, strdev->pkt_bytes, strdev->host_bytes, strdev->burst_count, strdev->hw_pwr_mask);
     *outu = strdev;
     return 0;
 

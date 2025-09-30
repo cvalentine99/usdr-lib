@@ -334,18 +334,13 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
     unsigned rx_mclk = d->base.cgen_clk / d->base.rxcgen_div / d->base.lml_mode.rxdiv;
     unsigned io_mclk = (rx_master) ? rx_mclk : tx_mclk;
     unsigned io_clk  = (nomul) ? io_mclk : io_mclk * 2;
-    unsigned vco_div_io_m = (MMCM_VCO_MAX  + io_clk - 1) / io_clk;
+    unsigned vco_div_io = (MMCM_VCO_MAX  + io_clk - 1) / io_clk;
 
-    vco_div_io_m += g_clk_reduce;
+    vco_div_io += g_clk_reduce;
 
-    if (vco_div_io_m > 63)
-        vco_div_io_m = 63;
+    if (vco_div_io > 63)
+        vco_div_io = 63;
 
-    //unsigned vco_div_io = vco_div_io_m & 0xfc; //Multiply of 4
-    unsigned vco_div_io = vco_div_io_m & 0xff; // & 0xfc; //Multiply of 4
-    //if (!nomul) {
-    //    vco_div_io = vco_div_io_m & 0xfe;
-    //}
     int res = 0;
     struct mmcm_config_raw cfg_raw;
     memset(&cfg_raw, 0, sizeof(cfg_raw));
@@ -361,7 +356,7 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
     res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_MMCM_CTRL, mmcm_ctrl_sel | 0);
     res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_IQSEL, d->base.lml_mode.txsisoddr ? 0b1010 : 0b1100);
 
-    // 0 - n/a ( was IO_TX_IQSEL -- individual phase delay )
+    // 0 - IO_TX_DIV    ( was IO_TX_IQSEL -- individual phase delay )
     // 1 - IO_TX
     // 2 - IO_RX
     // 3 - n/a ( was LOGIC_TX )
@@ -396,7 +391,7 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
 
     unsigned total_budget = 8 * vco_div_io;
     unsigned phase = (((tx_mclk < 2*35e6) || (tx_mclk > 2*60e6)) ? 4 : 5) * total_budget / 6;
-    unsigned phase_iq = 0; //4;
+    // unsigned phase_iq = 0; //4;
 
     cfg_raw.ports[CLKOUT_PORT_6].phase = phase % 8;
     cfg_raw.ports[CLKOUT_PORT_6].delay = phase / 8;
@@ -481,7 +476,7 @@ int xsdr_configure_lml_mmcm_tx(xsdr_dev_t *d, bool rx_master, unsigned rxphase, 
         usleep(10);
     }
 
-    USDR_LOG("XDEV", USDR_LOG_WARNING, "MMCM Redy flag timed out!\n");
+    USDR_LOG("XDEV", USDR_LOG_ERROR, "MMCM Redy flag timed out!\n");
     return -EIO;
 }
 
@@ -673,11 +668,16 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 
     if (d->mmcm_tx) {
         // Boost IO voltage for stable high speed link
-        if (!d->siso_sdr_active_rx && d->new_rev && d->ssdr && d->s_rxrate > 85e6) {
+        if (!d->siso_sdr_active_rx && d->new_rev && d->ssdr && (d->s_rxrate > 85e6 || d->s_txrate > 85e6)) {
             res = res ? res : xsdr_set_vio(d, 1910);
-        } else if (!d->siso_sdr_active_rx && d->new_rev && !d->ssdr  && d->s_rxrate > 50e6) {
+        } else if (!d->siso_sdr_active_rx && d->new_rev && !d->ssdr && (d->s_rxrate > 70e6 || d->s_txrate > 70e6)) {
             res = res ? res : xsdr_set_vio(d, 1940);
-            res = res ? res : lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, 1340);
+            res = res ? res : xsdr_set_lms125vdd(d, 1320);
+        }
+
+        // Fixup for 53-58 MSPS range, but still 58 to 60 might be unoperable on some chips, and 60+ works fine again
+        if (!mmcm_rx_only_path && d->new_rev && !d->ssdr && (d->s_txrate >= 53e6 && d->s_txrate <= 60e6)) {
+            res = res ? res : xsdr_set_lms125vdd(d, 1360);
         }
 
         if (!(d->base.rx_run[0] || d->base.rx_run[1])) {
@@ -686,10 +686,12 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             res = res ? res : lms7002m_streaming_up(&d->base, RFIC_LMS7_RX, LMS7_CH_AB, 0, 0, 0);
         }
 
-
         res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcm_rx_only_path, 0, 0, 0);
         res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
         res = res ? res : _xsdr_rxserdes_reset(d);
+
+        if (res)
+            return res;
 
         // Autocalibration if RX phase wasn't set
         if (d->rx_override_phase == 0) {
@@ -702,26 +704,8 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 
             for (unsigned rxrty = 0; rxrty < 4; rxrty++) {
             uint64_t badness_m = UINT64_MAX;
-            unsigned c;
 
             phase_m = 0;
-#if 0
-            res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_LFSR);
-            res = res ? res : usleep(10);
-            res = res ? res : xsdr_phy_en_lfsr_checker_mimo(d, true);
-            for (c = 0; c < check_to; c++) {
-                res = res ? res : usleep(1000);
-                res = res ? res : xsdr_phy_lfsr_mimo_state(d, LFSR_CNTR_BER, errs);
-                if (res || (d->dpump ? !noerrors_v2(errs, &badness_m) : !noerrors_v4(errs, &badness_m)))
-                    break;
-            }
-
-            USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE=AUTO [%d/%d/%d/%d] DPUMP=%d res=%d\n",
-                     errs[0], errs[1], errs[2], errs[3], d->dpump, res);
-            if (res || (d->dpump ? noerrors_v2(errs, &badness_m) : noerrors_v4(errs, &badness_m)))
-                goto phase_calibrated;
-
-#endif
             res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_LFSR);
 
             int phase_min;
@@ -765,10 +749,6 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                     // Got more than 7 phases, we're safe; skip searching
                     if (phase_max - phase_min > 7)
                         break;
-                    //if (d->s_rxrate > 60e6) {
-                    //    rx_badness = badness;
-                    //    goto phase_calibrated;
-                    //}
                 } else if (phase_max >= phase_min) {
                     break;
                 }
@@ -816,7 +796,6 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             break;
             }
 
-        phase_calibrated:
             d->lmlcal_rx_phase = phase_m;
 
             if (mmcm_rx_only_path)
@@ -879,10 +858,8 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                             if (res)
                                 return res;
 
-                            if (rty == 0 && iqserrs != 0 || iqserrs > 40) {
+                            if ((rty == 0 && iqserrs != 0) || iqserrs > 40) {
                                 USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX[%d]=%2d ABIQ=%d\n", g, ph - 1, iqserrs);
-
-                                //goto phase_tx_calibrated;
                                 unsigned msk[12] = { 0b1100, 0b0110, 0b0011, 0b1001,   0b1000, 0b0100, 0b0010, 0b0001,  0b1100, 0b0110, 0b1001, 0b1100 };
 
                                 res = res ? res : xsdr_phy_tx_reg(d, PHY_REG_PORT_IQSEL, d->base.lml_mode.txsisoddr ? 0b1010 : msk[g + 1]);
@@ -891,21 +868,13 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
                                 res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
                                 res = res ? res : usleep(10);
 
-                                //res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcx_rx_path, d->lmlcal_rx_phase, ph + 1, iq_ph);
-                                //res = res ? res : xsdr_configure_lml_mmcm_tx(d, mmcx_rx_path, d->lmlcal_rx_phase, ph, iq_ph);
-                                // res = res ? res : lms7002m_limelight_l_reset(&d->base.lmsstate, false, true);
-                                //res = res ? res : lms7002m_limelight_reset(&d->base.lmsstate);
-                                //res = res ? res : _xsdr_txserdes_reset(d);
-                                //res = res ? res : _xsdr_rxserdes_reset(d);
-                                //res = res ? res : usleep(10);
-
                             } else if (g > 0) {
                                 USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
                                 break;
                             }
                         }
 
-                        if (rty == 0 && iqserrs != 0 || iqserrs > 40) {
+                        if ((rty == 0 && iqserrs != 0) || iqserrs > 40) {
                             USDR_LOG("XDEV", USDR_LOG_INFO, "PHASE_TX=%2d ABIQ=%d\n", ph - 1, iqserrs);
                             res = res ? res : xsdr_phy_en_lfsr_generator_mimo(d, true, true);
                             continue;
@@ -972,10 +941,13 @@ no_tx:
         res = res ? res : lms7002m_set_lmlrx_mode(&d->base, XSDR_LMLRX_NORMAL);
     }
 
-    if (rx_badness || !mmcm_rx_only_path && (tx_badness || tx_iqerrs)) {
+    if (rx_badness || (!mmcm_rx_only_path && (tx_badness || tx_iqerrs))) {
         bool severe = (rx_badness > 100) || (!mmcm_rx_only_path && (tx_badness > 100 || tx_iqerrs > 10));
         USDR_LOG("XDEV", severe ? USDR_LOG_ERROR : USDR_LOG_WARNING, "LML Calibration failed: RX_BADNESS=%"PRId64" TX_BADNESS=%"PRId64" TX_IQERRS=%d\n",
                  rx_badness, mmcm_rx_only_path ? 0 : tx_badness, mmcm_rx_only_path ? 0 : tx_iqerrs);
+
+        if (res == 0 && severe)
+            res = -ERANGE;
     }
     return res;
 }
@@ -1375,14 +1347,30 @@ int xsdr_rfic_fe_set_freq(xsdr_dev_t *d,
                        double freq,
                        double *actualfreq)
 {
-    if (d->ssdr && freq > 3.7e9) {
+    if (d->ssdr && freq > 3.0e9) {
+        float bwef = d->lms8st_bwef_1000 / 1000.0;
         int res = 0;
-        d->lms7_lob = 1.01e9;
+        d->lms7_lob = 2.01e9;
 
         res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_LMS8_CTRL, 0x81);
-        res = res ? res : lms8001_tune(&d->lms8, d->base.fref, freq - d->lms7_lob);
 
-        dev_gpo_set(d->base.lmsstate.dev, IGPO_LMS8_CTRL, 0x80);
+#if 0
+        res = res ? res : lms8001b_hlmix_loss_set(&d->lms8, 2, 0);
+        res = res ? res : lms8001b_hlmix_loss_set(&d->lms8, 3, 0);
+#else
+        res = res ? res : lms8001a_ch_lna_pa_set(&d->lms8, 0, 0, 0);
+        res = res ? res : lms8001a_ch_lna_pa_set(&d->lms8, 1, 0, 0);
+        res = res ? res : lms8001a_ch_lna_pa_set(&d->lms8, 2, 0, 0);
+        res = res ? res : lms8001a_ch_lna_pa_set(&d->lms8, 3, 0, 0);
+#endif
+        res = res ? res : lms8001_core_enable(&d->lms8, 1);
+        res = res ? res : lms8001_ch_enable(&d->lms8, 0xf);
+
+        //res = res ? res : lms8001_tune(&d->lms8, d->base.fref, freq - d->lms7_lob);
+        res = res ? res : lms8001_smart_tune(&d->lms8, 0, freq - d->lms7_lob, d->base.fref,
+                                             d->lms8st_loopbw, d->lms8st_phasemargin, bwef, d->lms8st_flock_n);
+
+        res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_LMS8_CTRL, 0x80);
         if (res)
             return res;
 
@@ -1450,6 +1438,17 @@ int xsdr_ctor(lldev_t dev, xsdr_dev_t *d)
 
     d->base.on_ant_port_sw = &_xsdr_antenna_port_switch;
     d->base.on_get_lml_portcfg = &lms7nfe_get_lml_portcfg;
+
+    d->lms8_rx_f_switchover = 3.5e9;
+    d->lms8_tx_f_switchover = 3.5e9;
+
+    d->lms8st_loopbw = 300000;
+    d->lms8st_phasemargin = 50;
+    d->lms8st_bwef_1000 = 2000;
+    d->lms8st_flock_n = 100;
+    d->lms8st_iq_gen = 0;
+    d->lms8st_int_mod = 0;
+    d->lms8st_enabled = 1;
 
     return 0;
 }
@@ -1577,6 +1576,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x002F0000, &chipver);
         USDR_LOG("XDEV", USDR_LOG_INFO, "LMS7002 version %08x\n", chipver);
 
+#if 0
         res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x81);
         usleep(100000);
 
@@ -1587,13 +1587,14 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         res = res ? res : lms8001_create(dev, d->base.lmsstate.subdev, 0, &d->lms8);
 
         res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x80);
+        //res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x00);
         // res = res ? res : dev_gpo_set(dev, IGPO_LDOLMS_EN, 0); // Enable LDOs
         // res = res ? res : dev_gpo_set(dev, IGPO_LMS_PWR, 0);
 
         if (chipver != 0x00004040) {
             USDR_LOG("XDEV", USDR_LOG_ERROR, "LMS8001 not detected!\n");
         }
-
+#endif
     }
     return res;
 }
@@ -1830,6 +1831,15 @@ int _xsdr_pwren_revo(xsdr_dev_t *d, bool on)
     return 0;
 }
 
+int xsdr_set_lms125vdd(xsdr_dev_t *d, unsigned vdd_mv)
+{
+    if (d->new_rev && !d->ssdr) {
+        return lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, vdd_mv);
+    }
+
+    return -EINVAL;
+}
+
 int xsdr_set_vio(xsdr_dev_t *d, unsigned vio_mv)
 {
     if (!d->new_rev) {
@@ -1925,9 +1935,9 @@ int xsdr_init(xsdr_dev_t *d)
     d->dpump = false;
 
     res = lms7002m_init(&d->base, dev, 0, XSDR_INT_REFCLK);
-    if (res)
+    if (res) {
         return res;
-
+    }
 
     switch (hwcfg_devid) {
     case XSDR_DEV: d->new_rev = true; d->ssdr = false; break;

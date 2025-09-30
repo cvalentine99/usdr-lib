@@ -16,9 +16,10 @@
 #define RFIC_CHANS 2
 
 enum xsdr_devices {
-    SSDR_DEV = 0x31,
-    XSDR_DEV = 0x30,
-    XTRX_DEV = 0x2e,
+    SSDR2_DEV = 0x32,
+    SSDR_DEV  = 0x31,
+    XSDR_DEV  = 0x30,
+    XTRX_DEV  = 0x2e,
 };
 
 
@@ -73,6 +74,21 @@ struct xsdr_dev
         bool pmic_ch145_valid;
         bool dac_old_r5;
     };
+
+    // LMS8001 parameter
+    bool lms8_rx_path_active;
+    bool lms8_tx_path_active;
+
+    uint32_t lms8_rx_f_switchover;
+    uint32_t lms8_tx_f_switchover;
+    uint32_t lms8st_loopbw;
+    uint32_t lms8st_phasemargin;
+    uint32_t lms8st_bwef_1000;
+    uint32_t lms8st_flock_n;
+    uint32_t lms8st_iq_gen;
+    uint32_t lms8st_int_mod;
+    uint32_t lms8st_enabled;
+
 };
 
 typedef struct xsdr_dev xsdr_dev_t;
@@ -139,6 +155,7 @@ int xsdr_dtor(xsdr_dev_t *d);
 int xsdr_set_extref(xsdr_dev_t *d, bool ext, uint32_t freq);
 
 int xsdr_set_vio(xsdr_dev_t *d, unsigned vio_mv);
+int xsdr_set_lms125vdd(xsdr_dev_t *d, unsigned vdd_mv);
 
 // Enable RFIC, no streaming
 int xsdr_pwren(xsdr_dev_t *d, bool on);
