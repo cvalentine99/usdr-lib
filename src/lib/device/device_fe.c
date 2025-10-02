@@ -10,6 +10,7 @@
 #include "ext_simplesync/ext_simplesync.h"
 #include "ext_fe_100_5000/ext_fe_100_5000.h"
 #include "ext_xmass/ext_xmass.h"
+#include "ext_fe_ch4_400_7200/ext_fe_ch4_400_7200.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -87,7 +88,7 @@ enum fe_type {
     FET_PCIE_SIMPLE_SYNC,
     FET_PICE_BREAKOUT,
     FET_PCIE_FE1005000,
-
+    FET_PCIE_FE4CH4007200,
     FET_COUNT
 };
 typedef enum fe_type fe_type_t;
@@ -99,6 +100,7 @@ static const char* s_fe_names[] = {
     "simplesync",
     "exm2pe",
     "fe1005000",
+    "fe4ch4007200",
 };
 
 
@@ -113,6 +115,7 @@ struct dev_fe {
         board_ext_supersync_t supersync;
         ext_fe_100_5000_t fe_100_5000;
         board_xmass_t xmass;
+        ext_fe_ch4_400_7200_t fe_4ch_400_7200;
     } fe;
 
     uint32_t debug_pciefe_last;
@@ -154,7 +157,7 @@ int device_fe_probe(device_t* base, const char* compat, const char* fename, unsi
     lldev_t dev = base->dev;
     unsigned i;
     int res;
-    dev_fe_t dfe;
+    dev_fe_t *dfe = (dev_fe_t*)malloc(sizeof(dev_fe_t));
     unsigned vfidx = 0;
     const char* hint = fename;
 
@@ -170,7 +173,7 @@ int device_fe_probe(device_t* base, const char* compat, const char* fename, unsi
     const unsigned uartbase = 54;
     const unsigned spiext_cfg = 58;
 
-    memset(&dfe, 0, sizeof(dfe));
+    memset(dfe, 0, sizeof(dev_fe_t));
 
     usdr_core_info_t fe_gpio;
     usdr_core_info_t fe_uart;
@@ -197,13 +200,14 @@ int device_fe_probe(device_t* base, const char* compat, const char* fename, unsi
         }
 
         switch (i) {
-        case FET_PICE_BREAKOUT: res = board_exm2pe_init(dev, 0, gpiobase, uartbase, hint_strip, compat, def_i2c_loc, &dfe.fe.exm2pe); break;
-        case FET_PCIE_DEVBOARD: res = board_ext_pciefe_init(dev, 0, gpiobase, uartbase, hint_strip, compat, def_i2c_loc, &dfe.fe.devboard); break;
-        case FET_PCIE_SUPER_SYNC: res = board_ext_supersync_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe.fe.supersync); break;
-        case FET_PCIE_SIMPLE_SYNC: res = board_ext_simplesync_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe.fe.simplesync); break;
-        case FET_PCIE_FE1005000: res = ext_fe_100_5000_init(dev, 0, gpiobase, spiext_cfg, 4, hint_strip, compat, &dfe.fe.fe_100_5000); break;
-        case FET_PCIE_XMASS: res = board_xmass_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe.fe.xmass); break;
-        default: return -EIO;
+        case FET_PICE_BREAKOUT: res = board_exm2pe_init(dev, 0, gpiobase, uartbase, hint_strip, compat, def_i2c_loc, &dfe->fe.exm2pe); break;
+        case FET_PCIE_DEVBOARD: res = board_ext_pciefe_init(dev, 0, gpiobase, uartbase, hint_strip, compat, def_i2c_loc, &dfe->fe.devboard); break;
+        case FET_PCIE_SUPER_SYNC: res = board_ext_supersync_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe->fe.supersync); break;
+        case FET_PCIE_SIMPLE_SYNC: res = board_ext_simplesync_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe->fe.simplesync); break;
+        case FET_PCIE_FE1005000: res = ext_fe_100_5000_init(dev, 0, gpiobase, spiext_cfg, 4, hint_strip, compat, &dfe->fe.fe_100_5000); break;
+        case FET_PCIE_XMASS: res = board_xmass_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe->fe.xmass); break;
+        case FET_PCIE_FE4CH4007200: res = ext_fe_ch4_400_7200_init(dev, 0, gpiobase, hint_strip, compat, &dfe->fe.fe_4ch_400_7200); break;
+        default: res = -EIO; goto failed;
         }
 
         if (res == 0) {
@@ -211,63 +215,61 @@ int device_fe_probe(device_t* base, const char* compat, const char* fename, unsi
         } else if (res != -ENODEV) {
             USDR_LOG("DEFE", USDR_LOG_ERROR, "Unable to initialize %s, error %d\n", s_fe_names[i], res);
             if (hint != NULL)
-                return res;
+                goto failed;
         }
     }
 
     if (i == FET_COUNT) {
         if (hint == NULL) {
             USDR_LOG("DEFE", USDR_LOG_NOTE, "No external FE was detected, provide fe=`frontend` for a strong hint\n");
-            *out = NULL;
-            return 0;
+            res = 0;
+            goto failed;
         }
 
         USDR_LOG("DEFE", USDR_LOG_WARNING, "No external FE was detected with `%s` hint and %s filter\n", hint, compat);
         return -ENODEV;
     }
 
-    dev_fe_t* n = (dev_fe_t*)malloc(sizeof(dev_fe_t));
-    *n = dfe;
-    n->type = (fe_type_t)i;
+    dfe->type = (fe_type_t)i;
 
     USDR_LOG("DEFE", USDR_LOG_WARNING, "Detected external FE: %s\n", s_fe_names[i]);
     res = usdr_vfs_obj_param_init_array_param(base,
-                                              (void*)n,
+                                              (void*)dfe,
                                               s_fe_params,
                                               SIZEOF_ARRAY(s_fe_params));
     if (res)
-        return res;
+        goto failed;
 
     vfidx += SIZEOF_ARRAY(s_fe_params);
 
-    switch (n->type) {
+    switch (dfe->type) {
     case FET_PCIE_DEVBOARD:
         res = usdr_vfs_obj_param_init_array_param(base,
-                                                  (void*)n,
+                                                  (void*)dfe,
                                                   s_fe_pcie_params,
                                                   SIZEOF_ARRAY(s_fe_pcie_params));
         break;
     case FET_PCIE_SIMPLE_SYNC:
         res = usdr_vfs_obj_param_init_array_param(base,
-                                                  (void*)n,
+                                                  (void*)dfe,
                                                   s_simplesync_params,
                                                   SIZEOF_ARRAY(s_simplesync_params));
         break;
     case FET_PCIE_SUPER_SYNC:
         res = usdr_vfs_obj_param_init_array_param(base,
-                                                  (void*)n,
+                                                  (void*)dfe,
                                                   s_lmk5c33216_params,
                                                   SIZEOF_ARRAY(s_lmk5c33216_params));
         break;
     case FET_PCIE_FE1005000:
         res = usdr_vfs_obj_param_init_array_param(base,
-                                                  (void*)n,
+                                                  (void*)dfe,
                                                   s_ext_fe_100_5000_params,
                                                   SIZEOF_ARRAY(s_ext_fe_100_5000_params));
         break;
     case FET_PCIE_XMASS:
         res = usdr_vfs_obj_param_init_array_param(base,
-                                                  (void*)n,
+                                                  (void*)dfe,
                                                   s_xmass_params,
                                                   SIZEOF_ARRAY(s_xmass_params));
         break;
@@ -275,7 +277,15 @@ int device_fe_probe(device_t* base, const char* compat, const char* fename, unsi
         break;
     }
 
-    *out = n;
+    if (res)
+        goto failed;
+
+    *out = dfe;
+    return res;
+
+failed:
+    *out = NULL;
+    free(dfe);
     return res;
 }
 

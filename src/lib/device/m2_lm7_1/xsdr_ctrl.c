@@ -1576,7 +1576,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x002F0000, &chipver);
         USDR_LOG("XDEV", USDR_LOG_INFO, "LMS7002 version %08x\n", chipver);
 
-#if 0
+#if 1
         res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x81);
         usleep(100000);
 
