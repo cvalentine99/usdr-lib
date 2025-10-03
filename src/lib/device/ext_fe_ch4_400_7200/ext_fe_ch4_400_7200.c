@@ -65,6 +65,17 @@ enum i2c_idx_extra {
     I2C_TEMP_U69 = MAKE_LSOP_I2C_ADDR(1, 0, I2C_DEV_TMP114NB),
 };
 
+enum {
+    RX_DSA_MAX_ATTN = 15,
+};
+
+static const uint64_t s_filerbank_ranges[] = {
+    400e6, 1000e6,
+    1000e6, 2000e6,
+    2000e6, 3500e6,
+    2500e6, 5000e6,
+    3500e6, 7100e6,
+};
 
 //------------------------
 // Low level expanders control
@@ -275,7 +286,36 @@ static void _ext_fe_antenna_sw_map_exp(unsigned antenna, bool rxen, bool txen,
     }
 }
 
+void ext_fe_rx_filterbank_upd(ext_fe_ch4_400_7200_t* def, unsigned chno)
+{
+    if (def->ucfg[chno].rx_fb_sel < RX_FILT_OPTS_AUTO_400_1000M)
+        return;
 
+    unsigned best_idx = 0;
+    unsigned best_off = 1000;
+
+    for (unsigned i = 0; i < SIZEOF_ARRAY(s_filerbank_ranges); i+= 2) {
+        if (s_filerbank_ranges[i] > def->ucfg[chno].rx_freq || def->ucfg[chno].rx_freq > s_filerbank_ranges[i + 1]) {
+            continue;
+        }
+
+        int64_t doff = (int64_t)(s_filerbank_ranges[i] + s_filerbank_ranges[i + 1]) / 2 - def->ucfg[chno].rx_freq ;
+        if (doff < 0)
+            doff = 0 - doff;
+
+        unsigned off = 1000 * doff / (s_filerbank_ranges[i + 1] - s_filerbank_ranges[i]);
+        if (off < best_off) {
+            best_off = off;
+            best_idx = i / 2;
+        }
+
+        USDR_LOG("FE4C", USDR_LOG_WARNING, "F%d %.3f -- %.3f  DOFF=%u OFF=%u\n",
+                 i, s_filerbank_ranges[i] / 1.0e6, s_filerbank_ranges[i + 1] / 1.0e6, (unsigned)doff, off);
+    }
+
+    def->ucfg[chno].rx_fb_sel = RX_FILT_OPTS_AUTO_400_1000M | best_idx;
+    USDR_LOG("FE4C", USDR_LOG_WARNING, "RXFBabk[%d] = %d\n", chno, def->ucfg[chno].rx_fb_sel);
+}
 
 // This function just update states of internal HW and I2C expander registers,
 // all calculation of band, filter, lofreq, etc. has been done before this call
@@ -353,6 +393,55 @@ int ext_fe_update_user(ext_fe_ch4_400_7200_t* fe)
     }
     return res;
 }
+
+
+int ext_fe_rx_freq_set(ext_fe_ch4_400_7200_t* def, unsigned chno, uint64_t freq)
+{
+    if (chno >= FE_MAX_HW_CHANS)
+        return -EINVAL;
+    if (!def->ucfg[chno].rx_en)
+        return 0;
+
+    def->ucfg[chno].rx_freq = freq;
+
+    ext_fe_rx_filterbank_upd(def, chno);
+    return ext_fe_update_user(def);
+}
+
+int ext_fe_rx_chan_en(ext_fe_ch4_400_7200_t* def, unsigned ch_fe_mask_rx)
+{
+    for (unsigned i = 0; i < FE_MAX_HW_CHANS; i++) {
+        def->ucfg[i].rx_en = (ch_fe_mask_rx & (1u << i)) ? 1 : 0;
+    }
+    return ext_fe_update_user(def);
+}
+
+int ext_fe_tx_chan_en(ext_fe_ch4_400_7200_t* def, unsigned ch_fe_mask_tx)
+{
+    for (unsigned i = 0; i < FE_MAX_HW_CHANS; i++) {
+        def->ucfg[i].tx_en = (ch_fe_mask_tx & (1u << i)) ? 1 : 0;
+    }
+    return ext_fe_update_user(def);
+}
+
+int ext_fe_rx_gain_set(ext_fe_ch4_400_7200_t* def, unsigned chno, unsigned gain, unsigned* actual_gain)
+{
+    if (chno >= FE_MAX_HW_CHANS)
+        return -EINVAL;
+    if (!def->ucfg[chno].rx_en)
+        return 0;
+    if (gain > RX_DSA_MAX_ATTN)
+        gain = RX_DSA_MAX_ATTN;
+
+    def->ucfg[chno].rx_dsa = RX_DSA_MAX_ATTN - gain;
+
+    if (actual_gain) {
+        *actual_gain = gain;
+    }
+
+    return ext_fe_update_user(def);
+}
+
 
 
 int ext_fe_ch4_sens_get(ext_fe_ch4_400_7200_t* fe, uint64_t *ovalue)
@@ -563,7 +652,7 @@ int ext_fe_ch4_400_7200_init(lldev_t dev,
     USDR_LOG("FE4C", USDR_LOG_ERROR, "Temp %.2fC\n", val / 256.0);
 
     // User initialization
-    ob->ref_gps = 0;
+    ob->ref_gps = 1;
     ob->if_vbyp = 1;
     for (unsigned ch = 0; ch < FE_MAX_HW_CHANS; ch++) {
         ob->ucfg[ch].rx_fb_sel = RX_FB_AUTO; // rx_filterbank
@@ -595,4 +684,14 @@ int ext_fe_ch4_400_7200_init(lldev_t dev,
     ob->gpio_base = gpio_base;
     ob->hsgpio_base = 0;
     return 0;
+}
+
+int ext_fe_destroy(ext_fe_ch4_400_7200_t* dfe)
+{
+    for (unsigned ch = 0; ch < FE_MAX_HW_CHANS; ch++) {
+        dfe->ucfg[ch].tx_en = 0; // Channel enabled on device side
+        dfe->ucfg[ch].rx_en = 0; // Channel enabled on device side
+    }
+
+    return ext_fe_update_user(dfe);
 }

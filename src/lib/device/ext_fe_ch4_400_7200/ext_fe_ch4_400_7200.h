@@ -80,5 +80,13 @@ int ext_fe_ch4_400_7200_init(lldev_t dev,
                              const char *params,
                              const char *compat,
                              ext_fe_ch4_400_7200_t* ob);
+int ext_fe_destroy(ext_fe_ch4_400_7200_t* dfe);
+
+int ext_fe_rx_freq_set(ext_fe_ch4_400_7200_t* def, unsigned chno, uint64_t freq);
+int ext_fe_rx_chan_en(ext_fe_ch4_400_7200_t* def, unsigned ch_fe_mask_rx);
+int ext_fe_tx_chan_en(ext_fe_ch4_400_7200_t* def, unsigned ch_fe_mask_tx);
+
+int ext_fe_rx_gain_set(ext_fe_ch4_400_7200_t* def, unsigned chno, unsigned gain, unsigned* actual_gain);
+
 
 #endif
