@@ -46,17 +46,32 @@ enum {
     I2C_BUS_FRONTEND = MAKE_LSOP_I2C_ADDR(0, 1, 0),
 };
 
+static const usdr_dev_param_constant_t s_params_m2_lm7_1_rev_generic[] = {
+    { DNLL_I2C_COUNT, 1 },
+    { DNLL_IRQ_COUNT, 8 },
+};
+
+// sSDR external I2C bus (3/4)
+static const usdr_dev_param_constant_t s_params_m2_lm7_1_rev_advanced[] = {
+    { DNLL_I2C_COUNT, 2 },
+    { DNLL_IRQ_COUNT, 9 },
+
+    { "/ll/i2c/1/core", USDR_MAKE_COREID(USDR_CS_BUS, USDR_BS_DI2C_SIMPLE) },
+    { "/ll/i2c/1/base", REG_SPI_I2C2 },
+    { "/ll/i2c/1/irq",  M2PCI_INT_I2C_1 },
+};
+
 //
 static
 const usdr_dev_param_constant_t s_params_m2_lm7_1_rev000[] = {
     { DNLL_SPI_COUNT, 1 },
-    { DNLL_I2C_COUNT, 1 },
+   // { DNLL_I2C_COUNT, 1 },
     { DNLL_SRX_COUNT, 1 },
     { DNLL_STX_COUNT, 1 },
     { DNLL_RFE_COUNT, 1 },
     { DNLL_TFE_COUNT, 0 },
     { DNLL_IDX_REGSP_COUNT, 1 },
-    { DNLL_IRQ_COUNT, 8 }, //TODO fix segfault when int count < configured
+  //  { DNLL_IRQ_COUNT, 8 }, //TODO fix segfault when int count < configured
     { DNLL_DRP_COUNT, 2 },
     { DNLL_BUCKET_COUNT, 1 },
     { DNLL_GPO_COUNT, 1 },
@@ -1133,6 +1148,13 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
 
     d->xdev.dpump = d->double_pump;
 
+    // Proxy operations
+    memcpy(&d->my_ops, lowlevel_get_ops(dev), sizeof (lowlevel_ops_t));
+    d->my_ops.ls_op = &usdr_device_m2_lm7_1_lsop;
+    d->p_original_ops = lowlevel_get_ops(dev);
+    dev->ops = &d->my_ops;
+
+    // Probe fe
     if (d->xdev.new_rev) {
         // Init FE
         res = device_fe_probe(udev, d->xdev.ssdr ? "m2b+m" : "m2a+e", fe, I2C_BUS_FRONTEND, &d->fe);
@@ -1149,11 +1171,6 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
     lowlevel_reg_wr32(dev, 0, 0, 0x02000000);
 #endif
 
-    // Proxy operations
-    memcpy(&d->my_ops, lowlevel_get_ops(dev), sizeof (lowlevel_ops_t));
-    d->my_ops.ls_op = &usdr_device_m2_lm7_1_lsop;
-    d->p_original_ops = lowlevel_get_ops(dev);
-    dev->ops = &d->my_ops;
 
     return 0;
 }
@@ -1343,6 +1360,7 @@ static
 int usdr_device_m2_lm7_1_create(lldev_t dev, device_id_t devid)
 {
     int res;
+    unsigned hwid;
 
     struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)malloc(sizeof(struct dev_m2_lm7_1_gps));
     res = xsdr_ctor(dev, &d->xdev);
@@ -1354,6 +1372,23 @@ int usdr_device_m2_lm7_1_create(lldev_t dev, device_id_t devid)
     if (res) {
         goto failed_free;
     }
+
+    res = dev_gpi_get32(dev, IGPI_HWID, &hwid);
+    //if (res) {
+    //    goto failed_free;
+    //}
+
+    if ((res == 0) && ((hwid >> 16) & 0xff) == SSDR_DEV) {
+        res = vfs_add_const_i64_vec(&d->base.rootfs,
+                                    s_params_m2_lm7_1_rev_advanced,
+                                    SIZEOF_ARRAY(s_params_m2_lm7_1_rev_advanced));
+    } else {
+        res = vfs_add_const_i64_vec(&d->base.rootfs,
+                                    s_params_m2_lm7_1_rev_generic,
+                                    SIZEOF_ARRAY(s_params_m2_lm7_1_rev_generic));
+    }
+    if (res)
+        goto failed_tree_creation;
 
     res = vfs_add_const_i64_vec(&d->base.rootfs,
                                 s_params_m2_lm7_1_rev000,
