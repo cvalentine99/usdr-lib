@@ -36,8 +36,9 @@
 //
 
 enum dsdr_type {
-    DSDR_KCU116_EVM = 0xce,
+    DSDR_KCU116_EVM = 0xc0,
     DSDR_M2_R0 = 0xc2,
+    DSDR_M2_R1 = 0xce,
     DSDR_PCIE_HIPER_R0 = 0xcf,
 };
 
@@ -155,6 +156,9 @@ enum {
     IGPO_TX_MAP = 37,
 
     //IGPO_RX_IQS = 38,
+
+    IGPO_TX_CHEN = 39,
+    IGPO_RX_CHEN = 40,
 };
 
 enum {
@@ -265,6 +269,9 @@ const usdr_dev_param_constant_t s_params_m2_dsdr_rev000[] = {
 
 static int dev_m2_dsdr_rate_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_dsdr_rate_m_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
+
+static int dev_m2_dsdr_rx_enchan(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
+static int dev_m2_dsdr_tx_enchan(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
 static int dev_m2_dsdr_gain_tx_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
@@ -402,6 +409,9 @@ static
 const usdr_dev_param_func_t s_fparams_m2_dsdr_rev000[] = {
     { "/dm/rate/master",          { dev_m2_dsdr_rate_set, NULL }},
     { "/dm/rate/rxtxadcdac",      { dev_m2_dsdr_rate_m_set, NULL }},
+
+    { "/dm/sdr/0/rx_enchan",      { dev_m2_dsdr_rx_enchan, NULL }},
+    { "/dm/sdr/0/tx_enchan",      { dev_m2_dsdr_tx_enchan, NULL }},
 
     { "/dm/sdr/0/rx/remap",       { dev_m2_dsdr_sdr_rx_remap_set, dev_m2_dsdr_sdr_rx_remap_get }},
     { "/dm/sdr/0/tx/remap",       { dev_m2_dsdr_sdr_tx_remap_set, dev_m2_dsdr_sdr_tx_remap_get }},
@@ -606,6 +616,19 @@ static int dev_gpi_get32(lldev_t dev, unsigned bank, unsigned* data)
 bool dev_m2_dsdr_has_hiper(dev_m2_dsdr_t* d)
 {
     return d->type == DSDR_PCIE_HIPER_R0;
+}
+
+
+int dev_m2_dsdr_rx_enchan(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    dev_m2_dsdr_t *d = (dev_m2_dsdr_t *)ud;
+    return dev_gpo_set(d->base.dev, IGPO_RX_CHEN, value);
+
+}
+int dev_m2_dsdr_tx_enchan(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    dev_m2_dsdr_t *d = (dev_m2_dsdr_t *)ud;
+    return dev_gpo_set(d->base.dev, IGPO_TX_CHEN, value);
 }
 
 static int dsdr_update_rx_remap(dev_m2_dsdr_t* d)
@@ -1298,6 +1321,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     lldev_t dev = d->base.dev;
     int res = 0;
     uint32_t hwid, usr2, pg, los, devid, jesdv;
+    unsigned afeType = 0;
 
     d->subdev = 0;
     d->hw_mask_fb = 0;
@@ -1326,6 +1350,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     switch (devid) {
     case DSDR_KCU116_EVM:
     case DSDR_M2_R0:
+    case DSDR_M2_R1:
     case DSDR_PCIE_HIPER_R0:
         d->type = devid;
         break;
@@ -1339,6 +1364,12 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         return -EIO;
     }
 
+    //
+    if (getenv("DSDR_M2_R0")) {
+        d->type = DSDR_M2_R0;
+    }
+
+    afeType = 7901;
     switch (jesdv) {
     case DSDR_JESD204B_810_245:
         d->max_rate = 260e6;
@@ -1357,7 +1388,13 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         d->dac_rate = d->adc_rate = 491520000;
         d->afecongiguration =  "Afe79xxPg1_6664_491.txt";
         if (d->hw_mask_rx == 0x5 && d->hw_mask_tx == 0xA) {
-            d->afecongiguration =  "Afe79xxPg1_dsdr_491_7903.txt";
+            d->afecongiguration = "Afe79xxPg1_dsdr_491_7903.txt";
+            afeType = 7903;
+        }
+        if (false) {
+            // AFE7950
+            d->afecongiguration = "Afe79xxPg1_600_1.txt";
+            afeType = 7950;
         }
         break;
 
@@ -1367,6 +1404,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     }
 
     d->jesdv = jesdv;
+    USDR_LOG("XDEV", USDR_LOG_ERROR, "Configuration: %s\n", d->afecongiguration);
     USDR_LOG("XDEV", USDR_LOG_WARNING, "AFE type JESD204%c CH_TX=%02x CH_RX=%02x\n", (jesdv == DSDR_JESD204B_810_245) ? 'B' : 'C', d->hw_mask_tx, d->hw_mask_rx);
 
     if (getenv("SKIPAFE")) {
@@ -1413,7 +1451,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
             break;
     }
 
-    if (d->type == DSDR_M2_R0) {
+    if (d->type == DSDR_M2_R0 || d->type == DSDR_M2_R1) {
         bool pg;
         for (unsigned j = 0; j < 20; j++) {
             usleep(10000);
@@ -1473,13 +1511,14 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     if(res)
         return res;
 
-    //wait for PRIREF/SECREF validation
+    // wait for PRIREF/SECREF validation
     res = lmk05318_wait_dpll_ref_stat(&d->lmk, 100000);
-    if(res)
-    {
+    if (res) {
         USDR_LOG("DSDR", USDR_LOG_ERROR, "LMK03518 DPLL input reference freqs are not validated during specified timeout");
         return res;
     }
+
+    //res = res ? res : dev_gpo_set(dev, IGPO_PWR_LMK, 0x7f);
 
     //wait for lock
     res = lmk05318_wait_apll1_lock(&d->lmk, 200000);
@@ -1494,10 +1533,13 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
     //sync to make APLL1/APLL2 & out channels in-phase
     res = lmk05318_sync(&d->lmk);
+    //usleep(1000);
+
     //res = res ? res : dev_gpo_set(dev, IGPO_PWR_LMK, 0x7f);
+    //usleep(1000);
     //res = res ? res : dev_gpo_set(dev, IGPO_PWR_LMK, 0xff);
-    if(res)
-        return res;
+    //if(res)
+    //    return res;
 
     USDR_LOG("DSDR", USDR_LOG_INFO, "LMK03518 outputs synced, LOS=%x", los);
     //LMK05318 init end
@@ -1554,7 +1596,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     // We don't have PG_1v2 routed in this rev
     // We don't have EN_1v8 routed in this rev
 
-    if (d->type == DSDR_PCIE_HIPER_R0) {
+    if (d->type == DSDR_PCIE_HIPER_R0 || d->type == DSDR_M2_R1) {
         usleep(25000);
         res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0xf);
     }
@@ -1587,7 +1629,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     usleep(100000);
 
 
-    res = res ? res : afe79xx_create(dev, d->subdev, 0, &d->st);
+    res = res ? res : afe79xx_create(dev, d->subdev, 0, afeType, &d->st);
     if (res == 0) {
         res = res ? res : usdr_jesd204b_bringup_pre(d);
 
@@ -1859,6 +1901,8 @@ int usdr_device_m2_dsdr_create_stream(device_t* dev, const char* sid, const char
             }
         }
 
+        // TODO: set actual antenna mask
+        res = (res) ? res : dev_gpo_set(d->base.dev, IGPO_RX_CHEN, 0xf);
         *out_handle = d->rx;
     } else if (strstr(sid, "tx") != NULL) {
         if (d->tx) {
@@ -1924,6 +1968,8 @@ int usdr_device_m2_dsdr_create_stream(device_t* dev, const char* sid, const char
             }
         }
 
+        // TODO: set actual antenna mask
+        res = (res) ? res : dev_gpo_set(d->base.dev, IGPO_TX_CHEN, 0xf);
         *out_handle = d->tx;
     }
 
@@ -1944,6 +1990,8 @@ int usdr_device_m2_dsdr_unregister_stream(device_t* dev, stream_handle_t* stream
         if (dev_m2_dsdr_has_hiper(d)) {
             res = dsdr_hiper_fe_rx_chan_en(&d->hiper, 0);
         }
+
+        dev_gpo_set(d->base.dev, IGPO_RX_CHEN, 0);
     } else if (stream == d->tx) {
         d->tx = NULL;
         d->hw_enabled_rx = 0;
@@ -1952,6 +2000,8 @@ int usdr_device_m2_dsdr_unregister_stream(device_t* dev, stream_handle_t* stream
         if (dev_m2_dsdr_has_hiper(d)) {
             res = dsdr_hiper_fe_tx_chan_en(&d->hiper, 0);
         }
+
+        dev_gpo_set(d->base.dev, IGPO_TX_CHEN, 0);
     } else {
         return -EINVAL;
     }
