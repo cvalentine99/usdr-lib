@@ -1336,6 +1336,10 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         return res;
     }
 
+    res = res ? res : dev_gpo_set(dev, IGPO_AFE_RST, 0x0);
+    res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0x0);
+    res = res ? res : dev_gpo_set(dev, IGPO_PWR_LMK, 0x0);
+
     // TODO check for AFE7903
     if (getenv("DSDR_AFE7903")) {
         d->hw_mask_rx = 0x5; // RX_3 RX_1
@@ -1391,7 +1395,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
             d->afecongiguration = "Afe79xxPg1_dsdr_491_7903.txt";
             afeType = 7903;
         }
-        if (false) {
+        if (getenv("DSDR_M2_7950")) {
             // AFE7950
             d->afecongiguration = "Afe79xxPg1_600_1.txt";
             afeType = 7950;
@@ -1479,6 +1483,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
     usleep(20000);
     res = res ? res : dev_gpo_set(dev, IGPO_PWR_LMK, 0xff);
+    usleep(200000);
 
     //
     //LMK05318 init start
@@ -1591,6 +1596,8 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         USDR_LOG("DSDR", USDR_LOG_ERROR, "DCDC 0.9V isn't good, giving up!\n");
         return -EIO;
     }
+
+    usleep(10000);
 
     res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0x7); // Enable DCDC 1.2V;
     // We don't have PG_1v2 routed in this rev
