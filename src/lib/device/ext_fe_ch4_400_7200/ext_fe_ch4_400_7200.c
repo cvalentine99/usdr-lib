@@ -24,6 +24,8 @@
 // M.2 breakout
 // -------------------------------------------------------------------------------------
 // M.2 pin     sSDR           dSDR
+// 8           SSDR_GPIO2                    M2_1PPS_SYNC   --
+//
 // 10          SSDR_GPLED0    GPIO33_0       EXT_I2C_SDA
 // 20          SSDR_GPIO1     --------       AUX_MUX_GPIO1  -- *EXT2_I2C_SDA / FAN0_TACH
 // 38          SSDR_GPLED1_P                 FGPIO_N
@@ -42,6 +44,8 @@
 
 
 enum {
+    GPIO_1PPS     = GPIO2,
+
     // GPIO_I2C3_SDA = GPIO12,
     GPIO_I2C3_SCL = GPIO6,
 
@@ -63,6 +67,8 @@ enum i2c_idx_extra {
     I2C_TCA6424AR_U301 = MAKE_LSOP_I2C_ADDR(1, 1, TCA6424A_ADDR_H), //CD
 
     I2C_TEMP_U69 = MAKE_LSOP_I2C_ADDR(1, 0, I2C_DEV_TMP114NB),
+
+    I2C_DAC      = MAKE_LSOP_I2C_ADDR(1, 0, 0x48),
 };
 
 enum {
@@ -184,8 +190,8 @@ static void _ext_fe_fbank_map(unsigned filsel, unsigned *bout, unsigned *bin)
 // Switch on RX path =>  ANT_RX external port / rfsw_rxtx / LB
 enum rfsw_tddfdd_bits {
     EXP_TDDFDD_SD           = 0b00, // LB SW is on
-    EXP_TDDFDD_P2_TRX_SW    = 0b01,
-    EXP_TDDFDD_P1_LB_SW     = 0b10, // LB SW is on
+    EXP_TDDFDD_P1_LB_SW     = 0b01, // LB SW is on
+    EXP_TDDFDD_P2_TRX_SW    = 0b10,
     EXP_TDDFDD_P3_ANT_RX    = 0b11,
 };
 
@@ -638,6 +644,8 @@ int ext_fe_ch4_400_7200_init(lldev_t dev,
     if (res || val != TMP114_DEVICE_ID)
         return res;
 
+    res = (res) ? res : gpio_config(dev, subdev, gpio_base, GPIO_1PPS, GPIO_CFG_ALT0);
+
     res = (res) ? res : tca6424a_reg16_set(dev, subdev, I2C_TCA6424AR_U114, TCA6424_OUT0, 0);
     res = (res) ? res : tca6424a_reg8_set(dev, subdev, I2C_TCA6424AR_U114, TCA6424_OUT0 + 2, 0);
     res = (res) ? res : tca6424a_reg16_set(dev, subdev, I2C_TCA6424AR_U110, TCA6424_OUT0, 0);
@@ -672,6 +680,14 @@ int ext_fe_ch4_400_7200_init(lldev_t dev,
     res = (res) ? res : tca6424a_reg16_set(dev, subdev, I2C_TCA6424AR_U301, TCA6424_CFG0, 0);
     res = (res) ? res : tca6424a_reg8_set(dev, subdev, I2C_TCA6424AR_U301, TCA6424_CFG0 + 2, 0);
 
+
+    res = (res) ? res : dac80501_init(dev, subdev, I2C_DAC, DAC80501_CFG_REF_DIV_GAIN_MUL);
+    if (res) {
+        USDR_LOG("FE4C", USDR_LOG_WARNING, "External DAC not recognized error=%d\n", res);
+        //return -ENODEV;
+        // ob->dac_present = false;
+    }
+
     res = (res) ? res : usdr_vfs_obj_param_init_array_param(base,
                                               (void*)ob,
                                               s_fe_parameters,
@@ -694,4 +710,10 @@ int ext_fe_destroy(ext_fe_ch4_400_7200_t* dfe)
     }
 
     return ext_fe_update_user(dfe);
+}
+
+int ext_fe_set_dac(ext_fe_ch4_400_7200_t* brd, unsigned value)
+{
+    USDR_LOG("M2PE", USDR_LOG_ERROR, "DAC set to: %d\n", value);
+    return dac80501_dac_set(brd->dev, brd->subdev, I2C_DAC, value);
 }
