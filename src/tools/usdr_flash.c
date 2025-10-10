@@ -130,8 +130,12 @@ int main(int argc, char** argv)
     }
 
     if (!(no_device)) {
-        usdr_device_vfs_obj_val_get_u64(dev->pdev, "/ll/qspi_flash/master_off", &master_offset);
-        usdr_device_vfs_obj_val_get_u64(dev->pdev, "/ll/qspi_flash/base", &qspi_base);
+        res = res ? res : usdr_device_vfs_obj_val_get_u64(dev->pdev, "/ll/qspi_flash/master_off", &master_offset);
+        res = res ? res : usdr_device_vfs_obj_val_get_u64(dev->pdev, "/ll/qspi_flash/base", &qspi_base);
+
+        if (res) {
+            fprintf(stderr, "Unable to get board memory configuration, assuming MASTER_OFF=%x!\n", (unsigned)master_offset);
+        }
     }
 
     usleep(1000);
