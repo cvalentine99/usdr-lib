@@ -24,6 +24,7 @@
 
 #include "xsdr_ctrl.h"
 
+#include "../device/ext_pciefe/ext_pciefe.h"
 #include "../device/ext_exm2pe/board_exm2pe.h"
 #include "../device/ext_fe_ch4_400_7200/ext_fe_ch4_400_7200.h"
 
@@ -382,9 +383,12 @@ int dev_m2_lm7_1_debug_clkinfo_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t v
 int dev_m2_lm7_1_dev_dac_vctcxo_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
 {
     struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)ud;
+    board_ext_pciefe_t* board_fe = device_fe_to(d->fe, "pciefe");
     board_exm2pe_t* board = device_fe_to(d->fe, "exm2pe");
     ext_fe_ch4_400_7200_t* fe = device_fe_to(d->fe, "fe4ch4007200");
-    if (board) {
+    if (board_fe) {
+        return board_ext_pciefe_set_dac(board_fe, value);
+    } else if (board) {
         return board_exm2pe_set_dac(board, value);
     } else if (fe) {
         return ext_fe_set_dac(fe, value);
