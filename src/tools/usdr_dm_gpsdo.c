@@ -133,13 +133,14 @@ void show_usage(const char *procname)
     fprintf(stderr, "  Options:\n");
     fprintf(stderr, "    -d <device>           - device\n");
     // fprintf(stderr, "    -f <target_frequency> - target frequency of oscillator [26e6] Hz\n");
+    fprintf(stderr, "    -o <frequency>        - external oscilator frequency [25e6] Hz\n");
     fprintf(stderr, "    -r <target_rate>      - target samplerate [4e6] Samples\n");
     fprintf(stderr, "    -h                    - this help\n");
 }
 
 int main(int argc, char **argv)
 {
-    const char *pps_path = "/dm/sensor/freqpps";
+    const char *pps_path = "/dm/sensor/freqpps";//"/dm/sdr/0/clkmeas";
     const char *ext_osc_path = "/dm/sdr/refclk/path";
     const char *ext_osc_parm = "external";
     const char *ext_freq_path = "/dm/sdr/refclk/frequency";
@@ -152,10 +153,11 @@ int main(int argc, char **argv)
     pdm_dev_t dev;
     const char *device = "";//"fe=exm2pe:gps_on:osc_on";
     // double target_freq = 26e6; // Target frequency, 26 MHz
+    double osc_freq = (double)ext_freq_value;
     double target_freq = 4e6; // Target samplerate, 4 Msps
     bool new_holdover_msg = true;
 
-    while ((opt = getopt(argc, argv, "d:f:r:h")) != -1) {
+    while ((opt = getopt(argc, argv, "d:f:o:r:h")) != -1) {
         switch (opt) {
         case 'd':
             device = optarg;
@@ -165,6 +167,11 @@ int main(int argc, char **argv)
         //     if (target_freq < 100.0)
         //         target_freq *= 1e6;
         //     break;
+        case 'o':
+            osc_freq = atof(optarg);
+            if (osc_freq < 100.0)
+                osc_freq *= 1e6;
+            break;
         case 'r':
             target_freq = atof(optarg);
             if (target_freq < 100.0)
@@ -186,7 +193,7 @@ int main(int argc, char **argv)
         return 1;
     }
     
-    res = usdr_dme_set_uint(dev, ext_freq_path, ext_freq_value);
+    res = usdr_dme_set_uint(dev, ext_freq_path, (uint64_t)osc_freq);
     if (res) {
         fprintf(stderr, "Unable to setup external oscilator frequency %" PRId64 ": errno %d\n", ext_freq_value, res);
         usdr_dmd_close(dev);
