@@ -1562,6 +1562,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         return -EIO;
     }
 
+    d->lms8_alive = false;
     // Enable internal clocking by default
     res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_CLK_CFG, 1);
     if (hwid == SSDR_DEV) {
@@ -1576,25 +1577,34 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x002F0000, &chipver);
         USDR_LOG("XDEV", USDR_LOG_INFO, "LMS7002 version %08x\n", chipver);
 
-#if 1
-        res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x81);
-        usleep(100000);
+        for (unsigned j = 0; j < 5; j++) {
+            res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x81);
+            usleep(100000);
 
-        res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x800000ff, &chipver);
-        res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x000f0000, &chipver);
-        USDR_LOG("XDEV", USDR_LOG_INFO, "LMS8001 version %08x\n", chipver);
+            res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x800000ff, &chipver);
+            res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x000f0000, &chipver);
+            USDR_LOG("XDEV", USDR_LOG_INFO, "LMS8001 version %08x\n", chipver);
 
-        res = res ? res : lms8001_create(dev, d->base.lmsstate.subdev, 0, &d->lms8);
+            res = res ? res : lms8001_create(dev, d->base.lmsstate.subdev, 0, &d->lms8);
 
-        res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x80);
-        //res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x00);
-        // res = res ? res : dev_gpo_set(dev, IGPO_LDOLMS_EN, 0); // Enable LDOs
-        // res = res ? res : dev_gpo_set(dev, IGPO_LMS_PWR, 0);
+            res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x80);
+            //res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x00);
+            // res = res ? res : dev_gpo_set(dev, IGPO_LDOLMS_EN, 0); // Enable LDOs
+            // res = res ? res : dev_gpo_set(dev, IGPO_LMS_PWR, 0);
 
-        if (chipver != 0x00004040) {
-            USDR_LOG("XDEV", USDR_LOG_ERROR, "LMS8001 not detected!\n");
+            if (chipver != 0x00004040) {
+                usleep(100000);
+            } else {
+                d->lms8_alive = true;
+                break;
+            }
         }
-#endif
+
+        if (!d->lms8_alive) {
+            USDR_LOG("XDEV", USDR_LOG_ERROR, "LMS8001 not detected, check the board!\n");
+            return -EFAULT;
+        }
+
     }
     return res;
 }

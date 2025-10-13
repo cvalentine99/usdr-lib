@@ -68,6 +68,7 @@ struct xsdr_dev
     bool pwr_en;
     bool new_rev;
     bool ssdr;
+    bool lms8_alive;
 
     bool dpump; //Dual pump data
     union {
