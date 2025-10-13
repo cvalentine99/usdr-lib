@@ -20,13 +20,16 @@ enum lms8_vco_params {
 
     // Safe values for LO range
     LMS8_MIN_NIQ = 520000000U,
-    LMS8_MAX_NIQ = 9110000000ULL,
+    //LMS8_MAX_NIQ = 9110000000ULL,
+    LMS8_MAX_NIQ = 9400000000ULL,
     LMS8_MIN_IQ = LMS8_MIN_NIQ / 2,
     LMS8_MAX_IQ = LMS8_MAX_NIQ / 2,
 };
 
 enum {
     LMS_LDO_1P25 = 101,
+    LMS_LDO_1P43 = 147,
+    LMS_LDO_VCO_REG = 207,
 };
 
 
@@ -332,9 +335,9 @@ int lms8001b_hlmix_loss_set(lms8001_state_t* state, unsigned chan, unsigned loss
 int lms8001_core_enable(lms8001_state_t* out, bool en)
 {
     uint32_t lms_init[] = {
-        MAKE_LMS8001_BIASLDOCONFIG_CLK_BUF_LDO_Config(0, 0, en ? 1 : 0, LMS_LDO_1P25),
-        MAKE_LMS8001_BIASLDOCONFIG_PLL_DIV_LDO_Config(0, 0, en ? 1 : 0, LMS_LDO_1P25),
-        MAKE_LMS8001_BIASLDOCONFIG_PLL_CP_LDO_Config(0, 0, en ? 1 : 0, LMS_LDO_1P25),
+        MAKE_LMS8001_BIASLDOCONFIG_CLK_BUF_LDO_Config(0, 0, en ? 1 : 0, LMS_LDO_1P43),
+        MAKE_LMS8001_BIASLDOCONFIG_PLL_DIV_LDO_Config(0, 0, en ? 1 : 0, LMS_LDO_1P43),
+        MAKE_LMS8001_BIASLDOCONFIG_PLL_CP_LDO_Config(0, 0, en ? 1 : 0, LMS_LDO_1P43),
     };
     return lms8001_spi_post(out, lms_init, SIZEOF_ARRAY(lms_init));
 }
@@ -348,12 +351,13 @@ int lms8001_create(lldev_t dev, unsigned subdev, unsigned lsaddr, lms8001_state_
     uint32_t lms_init[] = {
         MAKE_LMS8001_CHIPCONFIG_SPIConfig(1, 1, 1, 1, 1, 1, 1),
 
-        MAKE_LMS8001_BIASLDOCONFIG_CLK_BUF_LDO_Config(0, 0, 1, LMS_LDO_1P25),
-        MAKE_LMS8001_BIASLDOCONFIG_PLL_DIV_LDO_Config(0, 0, 1, LMS_LDO_1P25),
-        MAKE_LMS8001_BIASLDOCONFIG_PLL_CP_LDO_Config(0, 0, 1, LMS_LDO_1P25),
+        MAKE_LMS8001_BIASLDOCONFIG_CLK_BUF_LDO_Config(0, 0, 1, LMS_LDO_1P43),
+        MAKE_LMS8001_BIASLDOCONFIG_PLL_DIV_LDO_Config(0, 0, 1, LMS_LDO_1P43),
+        MAKE_LMS8001_BIASLDOCONFIG_PLL_CP_LDO_Config(0, 0, 1, LMS_LDO_1P43),
 
         MAKE_LMS8001_PLL_CONFIGURATION_PLL_VREG(1, 0, 1, 1, 32),
         MAKE_LMS8001_PLL_CONFIGURATION_PLL_CFG_XBUF(1, 0, 1),
+        //MAKE_LMS8001_PLL_CONFIGURATION_PLL_CFG_XBUF(0, 0, 1),
 
         ////////////////////////////////////////////////////////////////////////////////////
         MAKE_LMS8001_PLL_PROFILE_0_PLL_ENABLE_n(1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1),
