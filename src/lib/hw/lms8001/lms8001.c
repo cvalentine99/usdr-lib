@@ -433,8 +433,8 @@ struct lms80001_tune_settings {
 };
 typedef struct lms80001_tune_settings lms80001_tune_settings_t;
 
-static void _lms80001_tune_settings_def(lms80001_tune_settings_t* s) {
-    s->vtune_vct = 1;
+static void _lms80001_tune_settings_def(lms8001_state_t* m, lms80001_tune_settings_t* s) {
+    s->vtune_vct = m->stepping == LMS8_MPW2024 ? 2 : 1;
     s->vco_sel_force = 0;
     s->vco_sel_init = 2;
     s->freq_init_pos = 7;
@@ -607,7 +607,7 @@ static int _lms8001_center_vtune(lms8001_state_t* m, uint64_t fvco, int fref, ui
     int res;
     lms8001_pll_state_t* curr = &m->pll_profiles[m->act_profile];
     lms80001_tune_settings_t vco_settings;
-    _lms80001_tune_settings_def(&vco_settings);
+    _lms80001_tune_settings_def(m, &vco_settings);
     vco_settings.vtune_vct = 1;
     vco_settings.vco_sel_force = 1;
     vco_settings.freq_init_pos = 4;
@@ -1041,7 +1041,7 @@ int lms8001_config_pll(lms8001_state_t* m, uint64_t flo, int fref,
     // Calculate actual VCO frequency
     uint64_t fvco = (iq_gen) ? (flo << (pll_s.divi + 1)) : (flo << pll_s.divi);
     lms80001_tune_settings_t vco_settings;
-    _lms80001_tune_settings_def(&vco_settings);
+    _lms80001_tune_settings_def(m, &vco_settings);
 
     USDR_LOG("8001", USDR_LOG_NOTE, "PLL Tuning to F_VCO=%.3f GHz DIV=%d\n", fvco / 1.0e9, pll_s.divi);
 
