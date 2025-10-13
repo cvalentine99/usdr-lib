@@ -1567,6 +1567,10 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
     res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_CLK_CFG, 1);
     if (hwid == SSDR_DEV) {
         uint32_t chipver = ~0;
+        unsigned lms8_step = LMS8_MPW2024;
+        if (getenv("LMS8_MPW2015")) {
+            lms8_step = LMS8_MPW2015;
+        }
 
         // Check LMS8 presence
         res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x0);
@@ -1585,7 +1589,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
             res = res ? res : lowlevel_spi_tr32(dev, d->base.lmsstate.subdev, 0, 0x000f0000, &chipver);
             USDR_LOG("XDEV", USDR_LOG_INFO, "LMS8001 version %08x\n", chipver);
 
-            res = res ? res : lms8001_create(dev, d->base.lmsstate.subdev, 0, &d->lms8);
+            res = res ? res : lms8001_create(dev, d->base.lmsstate.subdev, 0, lms8_step, &d->lms8);
 
             res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x80);
             //res = res ? res : dev_gpo_set(dev, IGPO_LMS8_CTRL, 0x00);

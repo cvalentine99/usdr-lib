@@ -719,7 +719,7 @@ int dsdr_hiper_sens2temp_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *ovalue
 
 
 
-static int dsdr_hiper_initialize_lms8(dsdr_hiper_fe_t* dfe, unsigned addr, lms8001_state_t* obj)
+static int dsdr_hiper_initialize_lms8(dsdr_hiper_fe_t* dfe, unsigned addr, unsigned stepping, lms8001_state_t* obj)
 {
     uint32_t chipver = ~0;
     int res = 0;
@@ -727,13 +727,13 @@ static int dsdr_hiper_initialize_lms8(dsdr_hiper_fe_t* dfe, unsigned addr, lms80
     res = res ? res : lowlevel_spi_tr32(dfe->dev, dfe->subdev, addr, 0x000f0000, &chipver);
     USDR_LOG("HIPR", USDR_LOG_WARNING, "LMS8001.%08x: version %08x\n", addr, chipver);
 
-    res = res ? res : lms8001_create(dfe->dev, dfe->subdev, addr, obj);
+    res = res ? res : lms8001_create(dfe->dev, dfe->subdev, addr, stepping, obj);
     res = res ? res : lms8001_temp_start(obj);
 
     return res;
 }
 #include <stdio.h>
-int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, dsdr_hiper_fe_t* dfe)
+int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8_chip, dsdr_hiper_fe_t* dfe)
 {
     int res = 0;
     device_t* base = lowlevel_get_device(dev);
@@ -786,7 +786,7 @@ int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, dsdr_hiper_fe_t* df
     // LMS8
     for (unsigned k = 0; k < 6; k++) {
         uint32_t cfg = MAKE_SPIEXT_LSOPADR(MAKE_SPIEXT_CFG(LMS8_BCNTZ, k, LMS8_DIV), 0, spix_num);
-        res = res ? res : dsdr_hiper_initialize_lms8(dfe, cfg, &dfe->lms8[k]);
+        res = res ? res : dsdr_hiper_initialize_lms8(dfe, cfg, lms8_chip, &dfe->lms8[k]);
     }
 
     // ADF4002 (MUX -> GND -> DVDD readback as a sanity check)
