@@ -182,8 +182,9 @@ static int dev_m2_lm7_1_sdr_rx_gainvga_set(pdevice_t ud, pusdr_vfs_obj_t obj, ui
 static int dev_m2_lm7_1_sdr_rx_gainlna_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_sdr_rx_gainlb_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
+static int dev_m2_lm7_1_sdr_rfic_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_sdr_rx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
-//static int dev_m2_lm7_1_sdr_tx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
+static int dev_m2_lm7_1_sdr_tx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
 static int dev_m2_lm7_1_senstemp_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *ovalue);
 static int dev_m2_lm7_1_debug_lms7002m_reg_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
@@ -301,8 +302,11 @@ const usdr_dev_param_func_t s_fparams_m2_lm7_1_rev000[] = {
     { "/dm/sdr/0/rx/gain/lna",  { dev_m2_lm7_1_sdr_rx_gainlna_set, NULL }},
     { "/dm/sdr/0/rx/gain/lb",   { dev_m2_lm7_1_sdr_rx_gainlb_set, NULL }},
 
+    { "/dm/sdr/0/rx/rfic_path", { dev_m2_lm7_1_sdr_rfic_path_set, NULL }},
+    { "/dm/sdr/0/tx/rfic_path", { dev_m2_lm7_1_sdr_rfic_path_set, NULL }},
+
     { "/dm/sdr/0/rx/path",      { dev_m2_lm7_1_sdr_rx_path_set, NULL }},
-    { "/dm/sdr/0/tx/path",      { dev_m2_lm7_1_sdr_rx_path_set, NULL }},
+    { "/dm/sdr/0/tx/path",      { dev_m2_lm7_1_sdr_tx_path_set, NULL }},
 
     { "/dm/sdr/0/rx/dccorrmode",  { dev_m2_lm7_1_sdr_rx_dccorrmode_set, NULL }},
 
@@ -1007,18 +1011,24 @@ static int find_param_list(const char* param, const param_list_idx_t* lst, unsig
     return -1;
 }
 
+int _sdr_get_path(const char* param)
+{
+    int idx = find_param_list(param, s_path_list, SIZEOF_ARRAY(s_path_list));
+    if (idx < 0) {
+        USDR_LOG("UDEV", USDR_LOG_WARNING, "m2_lm7_1_GPS: unknown '%s' path!\n",
+                 param);
+        return -EINVAL;
+    }
+    return idx;
+}
 
-int dev_m2_lm7_1_sdr_rx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+int dev_m2_lm7_1_sdr_rfic_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
 {
     struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)ud;
     if (value > 4096) {
-        const char* param = (const char*)value;
-        int idx = find_param_list(param, s_path_list, SIZEOF_ARRAY(s_path_list));
-        if (idx < 0) {
-            USDR_LOG("UDEV", USDR_LOG_WARNING, "m2_lm7_1_GPS: unknown '%s' path!\n",
-                     param);
-            return -EINVAL;
-        }
+        int idx = _sdr_get_path((const char*)value);
+        if (idx < 0)
+            return idx;
 
         value = s_path_list[idx].param;
     }
@@ -1026,6 +1036,33 @@ int dev_m2_lm7_1_sdr_rx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t val
     return xsdr_rfic_fe_set_lna(&d->xdev, LMS7_CH_AB, value);
 }
 
+int dev_m2_lm7_1_sdr_rx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)ud;
+    if (value > 4096) {
+        int idx = _sdr_get_path((const char*)value);
+        if (idx < 0)
+            return idx;
+
+        value = s_path_list[idx].param;
+    }
+
+    return xsdr_rfic_rfe_set_path(&d->xdev, value);
+}
+
+int dev_m2_lm7_1_sdr_tx_path_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
+{
+    struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)ud;
+    if (value > 4096) {
+        int idx = _sdr_get_path((const char*)value);
+        if (idx < 0)
+            return idx;
+
+        value = s_path_list[idx].param;
+    }
+
+    return xsdr_rfic_tfe_set_path(&d->xdev, value);
+}
 
 int dev_m2_lm7_1_sdr_refclk_frequency_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value)
 {

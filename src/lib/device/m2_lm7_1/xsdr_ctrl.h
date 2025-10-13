@@ -139,9 +139,12 @@ int xsdr_rfic_fe_set_freq(xsdr_dev_t *d,
 
 int xsdr_rfic_fe_set_lna(xsdr_dev_t *d,
                          unsigned channel,
-                         //unsigned dir,
                          unsigned lna);
 
+int xsdr_rfic_rfe_set_path(xsdr_dev_t *d,
+                           unsigned path);
+int xsdr_rfic_tfe_set_path(xsdr_dev_t *d,
+                           unsigned path);
 
 int xsdr_rfic_streaming_xflags(xsdr_dev_t *d,
                                unsigned xor_rx_flags,
