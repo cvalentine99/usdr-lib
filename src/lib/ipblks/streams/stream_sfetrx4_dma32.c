@@ -712,6 +712,7 @@ static int initialize_stream_rx_32(device_t* device,
         // Wire format not supported, need transform function
         // suppose i16 but maintain complex / real format
         sc.sfmt = (*pfmt.host_fmt == 'C' || *pfmt.host_fmt == 'c') ? "ci16" : "i16";
+        res = 0;
     }
 
     //Find transform function
@@ -931,6 +932,7 @@ static int initialize_stream_tx_32(device_t* device,
         // Wire format not supported, need transform function
         // suppose i16 but maintain complex / real format
         sc.sfmt = (*pfmt.host_fmt == 'C' || *pfmt.host_fmt == 'c') ? "ci16" : "i16";
+        res = 0;
     }
 
     //Find transform function
