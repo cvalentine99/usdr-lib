@@ -1415,7 +1415,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
     for (unsigned h = 0; h < 8; h++) {
         d->hw_rxch_route[h] = h;
-        d->hw_rxch_route[h] = h;
+        d->hw_txch_route[h] = h;
     }
 
     afeType = 7901;
