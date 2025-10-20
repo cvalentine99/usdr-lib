@@ -16,7 +16,8 @@
 #define RFIC_CHANS 2
 
 enum xsdr_devices {
-    SSDR2_DEV = 0x32,
+    SSDRPRO_DEV = 0x33,
+    //SSDR2_DEV = 0x32,
     SSDR_DEV  = 0x31,
     XSDR_DEV  = 0x30,
     XTRX_DEV  = 0x2e,
@@ -68,6 +69,7 @@ struct xsdr_dev
     bool pwr_en;
     bool new_rev;
     bool ssdr;
+    bool ssdr_pro;
     bool lms8_alive;
 
     bool dpump; //Dual pump data

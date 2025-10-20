@@ -666,6 +666,14 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
 
     g_clk_reduce = 0;
 
+    // Fixup for SSDR_PRO
+    if (d->ssdr_pro) {
+        // RX SISO DDR
+        res = res ? res : lowlevel_reg_wr32(d->base.lmsstate.dev, d->base.lmsstate.subdev, REG_CFG_PHY_0,
+                                            d->siso_sdr_active_rx ? (1u << 9) : 0);
+        return res;
+    }
+
     if (d->mmcm_tx) {
         // Boost IO voltage for stable high speed link
         if (!d->siso_sdr_active_rx && d->new_rev && d->ssdr && (d->s_rxrate > 85e6 || d->s_txrate > 85e6)) {
@@ -1035,12 +1043,13 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
             }
         }
 #endif
-
+        if (!d->ssdr_pro) {
         // Switch to clock meas
         res = res ? res : lowlevel_reg_wr32(dev, subdev, REG_CFG_PHY_0, 0x02000000);
+        }
     }
 
-    if (txrate) {
+    if (txrate || d->ssdr_pro) {
         res = res ? res : _xsdr_calibrate_lml(d);
     }
 
@@ -1063,15 +1072,18 @@ int xsdr_clk_debug_info(xsdr_dev_t *d)
     if (res)
         return res;
 
+    if (!d->ssdr_pro) {
+        for (unsigned h = 0; h < 13; h++) {
+            unsigned p = ((h & 0x3) << 2) | (h >> 2);
+            res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
+            res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
+            res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
+            res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
 
-    for (unsigned h = 0; h < 13; h++) {
-        unsigned p = ((h & 0x3) << 2) | (h >> 2);
-        res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
-        res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
-        res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
-        res = res ? res : xsdr_phy_rx_reg(d, false, PHY_REG_RXBANK_LFSRCHK, p, 0);
-
-        res = res ? res : lowlevel_reg_rd32(dev, 0, REG_CFG_PHY_0, &dump[h]);
+            res = res ? res : lowlevel_reg_rd32(dev, 0, REG_CFG_PHY_0, &dump[h]);
+        }
+    } else {
+        memset(dump, 0, sizeof(dump));
     }
 
 
@@ -1505,7 +1517,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
     strncpy(d->base.cfg_auto_tx[1].name0, "H", sizeof(d->base.cfg_auto_tx[1].name0));
     strncpy(d->base.cfg_auto_tx[1].name1, "B2", sizeof(d->base.cfg_auto_tx[1].name1));
 
-    if (hwid == SSDR_DEV) {
+    if (hwid == SSDR_DEV || hwid == SSDRPRO_DEV) {
         // QPC8019Q   0: RFC1 -- HF; 1: RFC2 -- LF
 
         d->base.cfg_auto_rx[0].stop_freq = 3000e6;
@@ -1528,28 +1540,38 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
     if (res)
         return res;
 
-    if (rev == 0xe001) {
+    bool good_pmic = (hwid == SSDRPRO_DEV) ? (rev == 0xe302) :  (rev == 0xe001);
+    if (good_pmic) {
         d->pmic_ch145_valid = true;
     }
 
-    USDR_LOG("XDEV", (rev == 0xe001) ? USDR_LOG_INFO : USDR_LOG_ERROR, "PMIC_RFIC ver %04x (%d)\n",
+    USDR_LOG("XDEV", (good_pmic) ? USDR_LOG_INFO : USDR_LOG_ERROR, "PMIC_RFIC ver %04x (%d)\n",
              rev, d->pmic_ch145_valid);
 
-    if (hwid == SSDR_DEV) {
+    if (hwid == SSDRPRO_DEV) {
+        res = lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 3, 2040);
+    } if (hwid == SSDR_DEV) {
         res = lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 2040);
     } else {
         // TODO check if we need this rail
         res = lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 1480);
     }
 
-    // LMS Vcore boost to 1.25V
-    res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1280);
-    res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 3, 1850);
+    if (hwid == SSDRPRO_DEV) {
+        // TODO adjust VCORE to 0.88V
+        // res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 0, 880);
+        res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 1280);
+        res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1850);
+    } else {
+        // LMS Vcore boost to 1.25V
+        res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1280);
+        res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 3, 1850);
+    }
 
-    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 0, 1, 1); //1v0 -- less affected
-    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 1, 1); //2v5 -- less affected
-    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1, 1); //1v2
-    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 3, 1, 1); //1v8
+    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 0, 1, 1); //1v0 | 0v9 -- less affected
+    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 1, 1); //2v5 | 1v2 -- less affected
+    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1, 1); //1v2 | 1v8
+    res = res ? res : lp8758_vout_ctrl(dev, subdev, I2C_BUS_LP8758_FPGA, 3, 1, 1); //1v8 | 2v7
 
     // Wait for power to settle
     for (unsigned i = 0; !res && !pg && (i < 100); i++) {
@@ -1565,7 +1587,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
     d->lms8_alive = false;
     // Enable internal clocking by default
     res = res ? res : dev_gpo_set(d->base.lmsstate.dev, IGPO_CLK_CFG, 1);
-    if (hwid == SSDR_DEV) {
+    if (hwid == SSDR_DEV || hwid == SSDRPRO_DEV) {
         uint32_t chipver = ~0;
         unsigned lms8_step = LMS8_MPW2024;
         if (getenv("LMS8_MPW2015")) {
@@ -1604,7 +1626,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
             }
         }
 
-        if (!d->lms8_alive) {
+        if (!getenv("USDR_BARE_DEV") && (!d->lms8_alive)) {
             USDR_LOG("XDEV", USDR_LOG_ERROR, "LMS8001 not detected, check the board!\n");
             return -EFAULT;
         }
@@ -1848,7 +1870,8 @@ int _xsdr_pwren_revo(xsdr_dev_t *d, bool on)
 int xsdr_set_lms125vdd(xsdr_dev_t *d, unsigned vdd_mv)
 {
     if (d->new_rev && !d->ssdr) {
-        return lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 2, vdd_mv);
+        return lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA,
+                               d->ssdr_pro ? 1 : 2, vdd_mv);
     }
 
     return -EINVAL;
@@ -1872,7 +1895,8 @@ int xsdr_set_vio(xsdr_dev_t *d, unsigned vio_mv)
         vio_mv = 1600;
 
     USDR_LOG("XDEV", USDR_LOG_WARNING, "VIO set to %d mV\n", vio_mv);
-    return lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 3, vio_mv);
+    return lp8758_vout_set(d->base.lmsstate.dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA,
+                           d->ssdr_pro ? 3 : 1, vio_mv);
 }
 
 int xsdr_pwren(xsdr_dev_t *d, bool on)
@@ -1947,6 +1971,7 @@ int xsdr_init(xsdr_dev_t *d)
     d->cfg_srate_siso_rx = 0;
     d->cfg_srate_siso_tx = 0;
     d->dpump = false;
+    d->ssdr_pro = false;
 
     res = lms7002m_init(&d->base, dev, 0, XSDR_INT_REFCLK);
     if (res) {
@@ -1957,6 +1982,7 @@ int xsdr_init(xsdr_dev_t *d)
     case XSDR_DEV: d->new_rev = true; d->ssdr = false; break;
     case XTRX_DEV: d->new_rev = false; d->ssdr = false; break;
     case SSDR_DEV: d->new_rev = true; d->ssdr = true; break;
+    case SSDRPRO_DEV: d->new_rev = true; d->ssdr = true; d->ssdr_pro = true; break;
     default:
         USDR_LOG("XDEV", USDR_LOG_ERROR, "unsupported hwcfg_devid=%02x\n", hwcfg_devid);
 
@@ -2001,7 +2027,10 @@ int xsdr_dtor(xsdr_dev_t *d)
 
     res = (res) ? res : _xsdr_mmcm_pd(d);
 
-    if (d->ssdr) {
+    if (d->ssdr_pro) {
+        res = res ? res : lp8758_vout_set(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 3, 900);
+        res = res ? res : lp8758_vout_ctrl(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 3, 0, 1);
+    } if (d->ssdr) {
         res = res ? res : lp8758_vout_set(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 1, 900);
         res = res ? res : lp8758_vout_ctrl(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 1, 0, 1);
     }

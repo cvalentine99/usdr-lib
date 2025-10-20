@@ -1428,8 +1428,9 @@ int usdr_device_m2_lm7_1_create(lldev_t dev, device_id_t devid)
     //if (res) {
     //    goto failed_free;
     //}
+    unsigned did = ((hwid >> 16) & 0xff);
 
-    if ((res == 0) && ((hwid >> 16) & 0xff) == SSDR_DEV) {
+    if ((res == 0) && (did == SSDR_DEV || did == SSDRPRO_DEV)) {
         res = vfs_add_const_i64_vec(&d->base.rootfs,
                                     s_params_m2_lm7_1_rev_advanced,
                                     SIZEOF_ARRAY(s_params_m2_lm7_1_rev_advanced));
