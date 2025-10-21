@@ -1757,6 +1757,8 @@ static struct pci_device_id usdr_pci_table[] = {
 	  .driver_data = 3 },
 	{ PCI_DEVICE(0x10EE, 0x7049),
 	  .driver_data = 4 },
+	{ PCI_DEVICE(0x10EE, 0x9049),
+	  .driver_data = 4 },
 	{ PCI_DEVICE(0x10EE, 0x9034),
 	  .driver_data = 5 },
 	{ PCI_DEVICE(0x10EE, 0x9044),
