@@ -135,12 +135,16 @@ START_TEST(conv_ci12_4cf32_check_simd)
     void** pout = (void**)out;
     last_fn_name = NULL;
 
-    const size_t bzin  = SPEED_SIZE_BZ;
+    const size_t bzin  = SPEED_SIZE_BZ - 64 + 32 + 10;
     const size_t bzout = SPEED_WORD_COUNT * sizeof(float);
 
     fprintf(stderr,"\n**** Check SIMD implementations ***\n");
 
     //get etalon output data (generic foo)
+    memset(out[0], 0, bzout / 4);
+    memset(out[1], 0, bzout / 4);
+    memset(out[2], 0, bzout / 4);
+    memset(out[3], 0, bzout / 4);
     (*get_fn(OPT_GENERIC, 0))(&pin, bzin, pout, bzout);
     memcpy(out1_etalon, out[0], bzout / 4);
     memcpy(out2_etalon, out[1], bzout / 4);

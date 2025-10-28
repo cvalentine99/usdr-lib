@@ -34,7 +34,7 @@ static generic_opts_t max_opt = OPT_GENERIC;
 static void setup()
 {
     int res = 0;
-    res = res ? res : posix_memalign((void**)&in_0,       ALIGN_BYTES, PACKET_SIZE * sizeof(int16_t) / 2);
+    res = res ? res : posix_memalign((void**)&in_0,       ALIGN_BYTES, PACKET_SIZE * sizeof(int16_t) / 4);
     res = res ? res : posix_memalign((void**)&in_1,       ALIGN_BYTES, PACKET_SIZE * sizeof(int16_t) / 4);
     res = res ? res : posix_memalign((void**)&in_2,       ALIGN_BYTES, PACKET_SIZE * sizeof(int16_t) / 4);
     res = res ? res : posix_memalign((void**)&in_3,       ALIGN_BYTES, PACKET_SIZE * sizeof(int16_t) / 4);
@@ -87,7 +87,7 @@ static void printer(const char* header)
     for(unsigned k = 0; k < 4; ++k)
     {
         fprintf(stderr, "in[%d]: ", k);
-        for(unsigned i = 0; i < 8; ++i)
+        for(unsigned i = 0; i < PACKET_SIZE / 4; ++i)
         {
             fprintf(stderr, "%.d ", in[k][i] >> 4);
         }
@@ -95,7 +95,7 @@ static void printer(const char* header)
     }
 
     fprintf(stderr, "out  : ");
-    for(unsigned i = 0; i < 48; i += 3)
+    for(unsigned i = 0; i < OUT_BZ; i += 3)
     {
         uint8_t v0 = out[i + 0];
         uint8_t v1 = out[i + 1];
@@ -117,12 +117,13 @@ START_TEST(conv_4ci16_ci12_check_simd)
     void* pout = (void*)out;
     last_fn_name = NULL;
 
-    const size_t bzin  = PACKET_SIZE * sizeof(int16_t);
+    const size_t bzin  = PACKET_SIZE * sizeof(int16_t) - 64 + 32 + 10; //we should test all branches
     const size_t bzout = OUT_BZ;
 
     fprintf(stderr,"\n**** Check SIMD implementations ***\n");
 
     //get etalon output data (generic foo)
+    memset(out, 0, bzout);
     (*get_fn(OPT_GENERIC, 0))(pin, bzin, &pout, bzout);
 #ifdef DEBUG_PRINT
     printer("ETALON:");
