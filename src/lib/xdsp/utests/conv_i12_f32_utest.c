@@ -117,12 +117,13 @@ START_TEST(conv_i12_f32_check_simd)
     void* pout = (void*)out;
     last_fn_name = NULL;
 
-    const size_t bzin  = IN_STREAM_SIZE_BZ;
+    const size_t bzin  = IN_STREAM_SIZE_BZ - 64 + 32 + 10;
     const size_t bzout = WORD_COUNT * sizeof(float);
 
     fprintf(stderr,"\n**** Check SIMD implementations ***\n");
 
     //get etalon output data (generic foo)
+    memset(out, 0, bzout);
     (*get_fn(OPT_GENERIC, 0))(&pin, bzin, &pout, bzout);
     memcpy(out_etalon, out, bzout);
 

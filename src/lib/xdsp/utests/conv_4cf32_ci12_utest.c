@@ -169,12 +169,13 @@ START_TEST(conv_4cf32_ci12_check_simd)
     void* pout = (void*)out;
     last_fn_name = NULL;
 
-    const size_t bzin  = PACKET_SIZE * sizeof(float);
+    const size_t bzin  = PACKET_SIZE * sizeof(float) - 64 + 32 + 10;
     const size_t bzout = OUT_BZ;
 
     fprintf(stderr,"\n**** Check SIMD implementations ***\n");
 
     //get etalon output data (generic foo)
+    memset(out, 0, bzout);
     (*get_fn(OPT_GENERIC, 0))(pin, bzin, &pout, bzout);
 #ifdef DEBUG_PRINT
     printer("ETALON:");
