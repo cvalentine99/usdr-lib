@@ -22,17 +22,7 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
     uint32_t* outdata_4 = (uint32_t*)outdata_4_p;
     uint32_t* outdata_5 = (uint32_t*)outdata_5_p;
 
-    for (; i >= 24; i -= 24)
-    {
-        *outdata_0++ = *indata++;
-        *outdata_1++ = *indata++;
-        *outdata_2++ = *indata++;
-        *outdata_3++ = *indata++;
-        *outdata_4++ = *indata++;
-        *outdata_5++ = *indata++;
-    }
-
-    // do nothing with leftover
+    #include "conv_ci16_6ci16_generic.inc"
 }
 
 #undef TEMPLATE_FUNC_NAME

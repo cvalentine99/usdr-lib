@@ -72,37 +72,11 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         inptr64 += 12;
     }
 
-    const int16_t *in = (const int16_t *)inptr64;
-    for (; i >= 24; i -= 24)
+    //Generic block
     {
-        const float i0 = *in++;
-        const float q0 = *in++;
-        const float i1 = *in++;
-        const float q1 = *in++;
-        const float i2 = *in++;
-        const float q2 = *in++;
-        const float i3 = *in++;
-        const float q3 = *in++;
-        const float i4 = *in++;
-        const float q4 = *in++;
-        const float i5 = *in++;
-        const float q5 = *in++;
-
-        *(outdata_0++) = i0 * CONV_SCALE;
-        *(outdata_0++) = q0 * CONV_SCALE;
-        *(outdata_1++) = i1 * CONV_SCALE;
-        *(outdata_1++) = q1 * CONV_SCALE;
-        *(outdata_2++) = i2 * CONV_SCALE;
-        *(outdata_2++) = q2 * CONV_SCALE;
-        *(outdata_3++) = i3 * CONV_SCALE;
-        *(outdata_3++) = q3 * CONV_SCALE;
-        *(outdata_4++) = i4 * CONV_SCALE;
-        *(outdata_4++) = q4 * CONV_SCALE;
-        *(outdata_5++) = i5 * CONV_SCALE;
-        *(outdata_5++) = q5 * CONV_SCALE;
+        const int16_t *in = (const int16_t *)inptr64;
+        #include "conv_ci16_6cf32_generic.inc"
     }
-
-    // do nothing with leftover
 }
 
 #undef TEMPLATE_FUNC_NAME

@@ -63,18 +63,11 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         inptr64 += 12;
     }
 
-    const uint32_t* indata = (uint32_t*)inptr64;
-    for (; i >= 24; i -= 24)
+    //Generic block
     {
-        *outdata_0++ = *indata++;
-        *outdata_1++ = *indata++;
-        *outdata_2++ = *indata++;
-        *outdata_3++ = *indata++;
-        *outdata_4++ = *indata++;
-        *outdata_5++ = *indata++;
+        const uint32_t* indata = (uint32_t*)inptr64;
+        #include "conv_ci16_6ci16_generic.inc"
     }
-
-    // do nothing with leftover
 }
 
 #undef TEMPLATE_FUNC_NAME
