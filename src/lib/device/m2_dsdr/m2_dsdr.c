@@ -1362,7 +1362,8 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     int res = 0;
     uint32_t hwid, usr2, pg, los, devid, jesdv;
     unsigned afeType = 0;
-    unsigned lms8_step = LMS8_MPW2015;
+    unsigned lms8a_step = LMS8_MPW2015;
+    unsigned lms8b_step = LMS8_MPW2015;
 
     d->subdev = 0;
     d->dsdr_state = STATE_IDLE;
@@ -1731,10 +1732,14 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     }
 
     if (d->type == DSDR_PCIE_HIPER_R0) {
-        if (getenv("LMS8_MPW2024")) {
-            lms8_step = LMS8_MPW2024;
+        if (getenv("LMS8A_MPW2024")) {
+            lms8a_step = LMS8_MPW2024;
         }
-        res = res ? res : dsdr_hiper_fe_create(dev, SPI_BUS_HIPER_FE, lms8_step, &d->hiper);
+        if (getenv("LMS8B_MPW2024")) {
+            lms8b_step = LMS8_MPW2024;
+        }
+
+        res = res ? res : dsdr_hiper_fe_create(dev, SPI_BUS_HIPER_FE, lms8a_step, lms8b_step, &d->hiper);
     }
 
     usleep(100000);

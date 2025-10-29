@@ -746,7 +746,7 @@ static int dsdr_hiper_initialize_lms8(dsdr_hiper_fe_t* dfe, unsigned addr, unsig
     return res;
 }
 #include <stdio.h>
-int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8_chip, dsdr_hiper_fe_t* dfe)
+int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8a_chip, unsigned lms8b_chip,  dsdr_hiper_fe_t* dfe)
 {
     int res = 0;
     device_t* base = lowlevel_get_device(dev);
@@ -843,7 +843,7 @@ int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8_chip,
     // LMS8
     for (unsigned k = 0; k < 6; k++) {
         uint32_t cfg = MAKE_SPIEXT_LSOPADR(MAKE_SPIEXT_CFG(LMS8_BCNTZ, k, LMS8_DIV), 0, spix_num);
-        res = res ? res : dsdr_hiper_initialize_lms8(dfe, cfg, lms8_chip, &dfe->lms8[k]);
+        res = res ? res : dsdr_hiper_initialize_lms8(dfe, cfg, (k == 2 || k == 3) ? lms8a_chip : lms8b_chip, &dfe->lms8[k]);
     }
 
     // ADF4002 (MUX -> GND -> DVDD readback as a sanity check)

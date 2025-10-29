@@ -113,7 +113,7 @@ struct dsdr_hiper_fe {
 typedef struct dsdr_hiper_fe dsdr_hiper_fe_t;
 
 
-int dsdr_hiper_fe_create(lldev_t dev, unsigned spix_num, unsigned lms8_chip, dsdr_hiper_fe_t* dfe);
+int dsdr_hiper_fe_create(lldev_t dev, unsigned spix_num, unsigned lms8a_chip, unsigned int lms8b_chip, dsdr_hiper_fe_t* dfe);
 int dsdr_hiper_fe_destroy(dsdr_hiper_fe_t* dfe);
 
 int dsdr_hiper_fe_rx_freq_set(dsdr_hiper_fe_t* def, unsigned chno, uint64_t freq, uint64_t* ncotune, bool *p_swap_rxiq);
