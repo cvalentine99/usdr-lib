@@ -54,12 +54,12 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         __m256i d4 = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(c0, 1));
         __m256i d5 = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(c1, 1));
 
-        _mm256_storeu_ps(outdata_0, _mm256_mul_ps(_mm256_cvtepi32_ps(d0), scale));
-        _mm256_storeu_ps(outdata_1, _mm256_mul_ps(_mm256_cvtepi32_ps(d1), scale));
-        _mm256_storeu_ps(outdata_2, _mm256_mul_ps(_mm256_cvtepi32_ps(d2), scale));
-        _mm256_storeu_ps(outdata_3, _mm256_mul_ps(_mm256_cvtepi32_ps(d3), scale));
-        _mm256_storeu_ps(outdata_4, _mm256_mul_ps(_mm256_cvtepi32_ps(d4), scale));
-        _mm256_storeu_ps(outdata_5, _mm256_mul_ps(_mm256_cvtepi32_ps(d5), scale));
+        _mm256_store_ps(outdata_0, _mm256_mul_ps(_mm256_cvtepi32_ps(d0), scale));
+        _mm256_store_ps(outdata_1, _mm256_mul_ps(_mm256_cvtepi32_ps(d1), scale));
+        _mm256_store_ps(outdata_2, _mm256_mul_ps(_mm256_cvtepi32_ps(d2), scale));
+        _mm256_store_ps(outdata_3, _mm256_mul_ps(_mm256_cvtepi32_ps(d3), scale));
+        _mm256_store_ps(outdata_4, _mm256_mul_ps(_mm256_cvtepi32_ps(d4), scale));
+        _mm256_store_ps(outdata_5, _mm256_mul_ps(_mm256_cvtepi32_ps(d5), scale));
 
         outdata_0 += 8;
         outdata_1 += 8;

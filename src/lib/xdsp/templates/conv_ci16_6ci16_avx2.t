@@ -45,12 +45,12 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         __m256i c1 = _mm256_castpd_si256(_mm256_shuffle_pd(b1, b3, 0b0000));
         __m256i c3 = _mm256_castpd_si256(_mm256_shuffle_pd(b1, b3, 0b1111));
 
-        _mm_storeu_si128((__m128i*)outdata_0, _mm256_castsi256_si128(c0));
-        _mm_storeu_si128((__m128i*)outdata_1, _mm256_castsi256_si128(c1));
-        _mm_storeu_si128((__m128i*)outdata_2, _mm256_castsi256_si128(c2));
-        _mm_storeu_si128((__m128i*)outdata_3, _mm256_castsi256_si128(c3));
-        _mm_storeu_si128((__m128i*)outdata_4, _mm256_extracti128_si256(c0, 1));
-        _mm_storeu_si128((__m128i*)outdata_5, _mm256_extracti128_si256(c1, 1));
+        _mm_store_si128((__m128i*)outdata_0, _mm256_castsi256_si128(c0));
+        _mm_store_si128((__m128i*)outdata_1, _mm256_castsi256_si128(c1));
+        _mm_store_si128((__m128i*)outdata_2, _mm256_castsi256_si128(c2));
+        _mm_store_si128((__m128i*)outdata_3, _mm256_castsi256_si128(c3));
+        _mm_store_si128((__m128i*)outdata_4, _mm256_extracti128_si256(c0, 1));
+        _mm_store_si128((__m128i*)outdata_5, _mm256_extracti128_si256(c1, 1));
 
         outdata_0 += 4;
         outdata_1 += 4;
