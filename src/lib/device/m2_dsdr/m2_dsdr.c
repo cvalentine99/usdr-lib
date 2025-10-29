@@ -542,6 +542,11 @@ const usdr_dev_param_func_t s_fparams_m2_dsdr_rev000[] = {
 static const uint8_t s_chanmap_hw_to_fe[4] = { 2, 3, 1, 0 };
 static const uint8_t s_chanmap_fe_to_hw[4] = { 3, 2, 0, 1 };
 
+enum DSDR_STATE {
+    STATE_IDLE = 0,
+    STATE_AFE_INIT = 1,
+};
+
 struct dev_m2_dsdr {
     device_t base;
 
@@ -558,6 +563,7 @@ struct dev_m2_dsdr {
     afe79xx_state_t st;
     dsdr_hiper_fe_t hiper;
 
+    uint32_t dsdr_state;
     uint32_t cfg_afe_type;
     uint32_t cfg_rx_lanemap;
     uint32_t cfg_tx_lanemap;
@@ -1187,7 +1193,7 @@ int dev_m2_dsdr_debug_clk_info_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *
 {
     struct dev_m2_dsdr *d = (struct dev_m2_dsdr *)ud;
     int res = 0;
-    uint32_t clk;
+    uint32_t clk = 0;
 
     res = res ? res : dev_gpi_get32(d->base.dev, 20, &clk);
     *value = clk & 0xfffffff;
@@ -1359,6 +1365,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     unsigned lms8_step = LMS8_MPW2015;
 
     d->subdev = 0;
+    d->dsdr_state = STATE_IDLE;
     d->hw_mask_fb = 0;
     d->hw_mask_rx = 0xf; // RX_3 RX_2 RX_1 RX_0
     d->hw_mask_tx = 0xf; // TX_3 TX_2 TX_1 TX_0
@@ -1734,13 +1741,12 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
     // check state
     res = res ? res : dev_m2_dsdr_afe_health_get(udev, NULL, NULL);
-    USDR_LOG("DSDR", USDR_LOG_ERROR, "Initializing AFE done\n");
+    if (res)
+        return res;
 
-
-    // res = res ? res : dev_gpo_set(dev, IGPO_TIAFE_RX_SYNC_RESET, 1);
-    // res = res ? res : dev_gpo_set(dev, IGPO_TIAFE_RX_SYNC_RESET, 0);
-
-    return res;
+    USDR_LOG("DSDR", USDR_LOG_WARNING, "Initializing AFE done!\n");
+    d->dsdr_state = STATE_AFE_INIT;
+    return 0;
 }
 
 
@@ -1905,6 +1911,10 @@ int usdr_device_m2_dsdr_create_stream(device_t* dev, const char* sid, const char
     int res = 0;
     unsigned hwchs;
     channel_info_t lchans;
+
+    if (d->dsdr_state != STATE_AFE_INIT) {
+        return -EFAULT;
+    }
 
     res = dsdr_map_channels(channels, &lchans);
     if (res) {
