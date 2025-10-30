@@ -1,3 +1,12 @@
+#ifndef UNWRAP_CNT
+#define UNWRAP_CNT 4
+#endif
+
+#if UNWRAP_CNT > 4
+#error Maximum spported UNWRAP_CNT is 4!
+#endif
+
+
 static
 void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
                         unsigned indatabsz,
@@ -26,23 +35,78 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
 
         __m512i y0, y1;
         __m512 res0, res1, res2, res3;
+#if UNWRAP_CNT > 1
+        __m512i y2, y3;
+        __m512 res4, res5, res6, res7;
+#if UNWRAP_CNT > 2
+        __m512i y4, y5;
+        __m512 res8, res9, resA, resB;
+#if UNWRAP_CNT > 3
+        __m512i y6, y7;
+        __m512 resC, resD, resE, resF;
+#endif
+#endif
+#endif
 
         const __m512i idx0 = _mm512_set_epi64(13, 9,12, 8,5,1,4,0);
         const __m512i idx1 = _mm512_set_epi64(15,11,14,10,7,3,6,2);
 
-        for(; i >= 96; i -= 96)
+        for(; i >= 96 * UNWRAP_CNT; i -= 96 * UNWRAP_CNT)
         {
             y0 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 0));
             y1 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 6));
-            in += 12;
+#if UNWRAP_CNT > 1
+            y2 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 12));
+            y3 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 18));
+#if UNWRAP_CNT > 2
+            y4 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 24));
+            y5 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 30));
+#if UNWRAP_CNT > 3
+            y6 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 36));
+            y7 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 42));
+#endif
+#endif
+#endif
+
+            in += UNWRAP_CNT * 12;
 
             CONVERT_I12_F32_BLOCK(y0, res0, res1);
             CONVERT_I12_F32_BLOCK(y1, res2, res3);
+#if UNWRAP_CNT > 1
+            CONVERT_I12_F32_BLOCK(y2, res4, res5);
+            CONVERT_I12_F32_BLOCK(y3, res6, res7);
+#if UNWRAP_CNT > 2
+            CONVERT_I12_F32_BLOCK(y4, res8, res9);
+            CONVERT_I12_F32_BLOCK(y5, resA, resB);
+#if UNWRAP_CNT > 3
+            CONVERT_I12_F32_BLOCK(y6, resC, resD);
+            CONVERT_I12_F32_BLOCK(y7, resE, resF);
+#endif
+#endif
+#endif
 
             __m512d d0 = _mm512_shuffle_pd(_mm512_castps_pd(res0), _mm512_castps_pd(res1), 0b00000000);
             __m512d d1 = _mm512_shuffle_pd(_mm512_castps_pd(res0), _mm512_castps_pd(res1), 0b11111111);
             __m512d d2 = _mm512_shuffle_pd(_mm512_castps_pd(res2), _mm512_castps_pd(res3), 0b00000000);
             __m512d d3 = _mm512_shuffle_pd(_mm512_castps_pd(res2), _mm512_castps_pd(res3), 0b11111111);
+#if UNWRAP_CNT > 1
+            __m512d d4 = _mm512_shuffle_pd(_mm512_castps_pd(res4), _mm512_castps_pd(res5), 0b00000000);
+            __m512d d5 = _mm512_shuffle_pd(_mm512_castps_pd(res4), _mm512_castps_pd(res5), 0b11111111);
+            __m512d d6 = _mm512_shuffle_pd(_mm512_castps_pd(res6), _mm512_castps_pd(res7), 0b00000000);
+            __m512d d7 = _mm512_shuffle_pd(_mm512_castps_pd(res6), _mm512_castps_pd(res7), 0b11111111);
+#if UNWRAP_CNT > 2
+            __m512d d8 = _mm512_shuffle_pd(_mm512_castps_pd(res8), _mm512_castps_pd(res9), 0b00000000);
+            __m512d d9 = _mm512_shuffle_pd(_mm512_castps_pd(res8), _mm512_castps_pd(res9), 0b11111111);
+            __m512d dA = _mm512_shuffle_pd(_mm512_castps_pd(resA), _mm512_castps_pd(resB), 0b00000000);
+            __m512d dB = _mm512_shuffle_pd(_mm512_castps_pd(resA), _mm512_castps_pd(resB), 0b11111111);
+#if UNWRAP_CNT > 3
+            __m512d dC = _mm512_shuffle_pd(_mm512_castps_pd(resC), _mm512_castps_pd(resD), 0b00000000);
+            __m512d dD = _mm512_shuffle_pd(_mm512_castps_pd(resC), _mm512_castps_pd(resD), 0b11111111);
+            __m512d dE = _mm512_shuffle_pd(_mm512_castps_pd(resE), _mm512_castps_pd(resF), 0b00000000);
+            __m512d dF = _mm512_shuffle_pd(_mm512_castps_pd(resE), _mm512_castps_pd(resF), 0b11111111);
+#endif
+#endif
+#endif
 
             _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(d0, idx0, d2));
             _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(d1, idx0, d3));
@@ -53,6 +117,41 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
             outdata_1 += 16;
             outdata_2 += 16;
             outdata_3 += 16;
+
+#if UNWRAP_CNT > 1
+            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(d4, idx0, d6));
+            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(d5, idx0, d7));
+            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(d4, idx1, d6));
+            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(d5, idx1, d7));
+
+            outdata_0 += 16;
+            outdata_1 += 16;
+            outdata_2 += 16;
+            outdata_3 += 16;
+
+#if UNWRAP_CNT > 2
+            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(d8, idx0, dA));
+            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(d9, idx0, dB));
+            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(d8, idx1, dA));
+            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(d9, idx1, dB));
+
+            outdata_0 += 16;
+            outdata_1 += 16;
+            outdata_2 += 16;
+            outdata_3 += 16;
+#if UNWRAP_CNT > 3
+            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(dC, idx0, dE));
+            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(dD, idx0, dF));
+            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(dC, idx1, dE));
+            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(dD, idx1, dF));
+
+            outdata_0 += 16;
+            outdata_1 += 16;
+            outdata_2 += 16;
+            outdata_3 += 16;
+#endif
+#endif
+#endif
         }
 
         #undef CONVERT_I12_F32_BLOCK
