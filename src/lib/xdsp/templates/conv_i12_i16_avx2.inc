@@ -19,3 +19,17 @@ const __m256i shfl = _mm256_set_epi8(
     __m256i r1 = _mm256_and_si256(_mm256_srli_epi64(r, 4), mask1); \
             result = _mm256_or_si256(r0, r1); \
 }
+
+#define CONVERT_CI12_2CI16_BLOCK_OPT(reg, res0, res1) \
+{   \
+    __m256i v0 = _mm256_permutevar8x32_epi32(reg, permmask); \
+    __m256i r  = _mm256_shuffle_epi8(v0, shfl); \
+    \
+    __m256i a1 = _mm256_and_si256(r, mask0); \
+    __m256i a0 = _mm256_and_si256(_mm256_slli_epi64(r, 12), mask0); \
+    \
+    __m256i b0 = _mm256_unpacklo_epi32(a0, a1); \
+    __m256i b1 = _mm256_unpackhi_epi32(a0, a1); \
+            res0 = _mm256_castpd_si256(_mm256_shuffle_pd(_mm256_castsi256_pd(b0), _mm256_castsi256_pd(b1), 0b0000)); \
+            res1 = _mm256_castpd_si256(_mm256_shuffle_pd(_mm256_castsi256_pd(b0), _mm256_castsi256_pd(b1), 0b1111)); \
+}
