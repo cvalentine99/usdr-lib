@@ -6,7 +6,7 @@ set(USDR_DSDR_LIB_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/dsdr_hiper.c
 )
 
-set(HW_FILES m2_dsdr_e m2_dsdr_p m2_dsdr_usr)
+set(HW_FILES m2_dsdr_e m2_dsdr_e_v2 m2_dsdr_p m2_dsdr_usr)
 foreach(I ${HW_FILES})
     message(STATUS "Generating header for ${I}")
     GENERATE_YAML_H(${CMAKE_CURRENT_SOURCE_DIR}/${I}.yaml ${CMAKE_CURRENT_BINARY_DIR}/def_${I}.h)
