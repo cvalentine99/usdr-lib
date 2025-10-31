@@ -52,7 +52,7 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         i -= 96;
     }
 
-    while(i >= 48)
+    if(i >= 48)
     {
         __m256i y0 = _mm256_maskload_epi64((const long long*)(in + 0), load_mask);
         __m256i y1 = _mm256_maskload_epi64((const long long*)(in + 3), load_mask);
@@ -74,6 +74,16 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         in += 6;
         i -= 48;
     }
+	
+	#undef CONVERT_I12_I16_BLOCK
+	#undef CONVERT_I12_2I32_SEPARATED    
+	#undef CONVERT_CI12_2CI32_BLOCK_OPT
+	#undef CONVERT_CI12_4CI32_BLOCK_OPT
+	
+	#undef CONVERT_I12_F32_BLOCK
+	#undef CONVERT_I12_F32_BLOCK_STORE1
+	#undef CONVERT_CI12_2CF32_BLOCK_OPT
+	#undef CONVERT_CI12_4CF32_BLOCK_OPT
 
     const uint8_t *indata = (const uint8_t*)in;
     #include "conv_ci12_4cf32_generic.inc"
