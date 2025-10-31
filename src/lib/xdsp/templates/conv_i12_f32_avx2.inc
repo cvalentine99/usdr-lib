@@ -31,6 +31,9 @@ const __m256  scale2 = _mm256_set1_ps(SCALE2);
 *  | f15 |0| 00 00 | f13 |0| 00 00 | f11 |0| 00 00 | f9  |0| 00 00 | f7  |0| 00 00 | f5  |0| 00 00 | f3  |0| 00 00 | f1  |0| 00 00 |
 
 
+f14 f12 f10 f8  | f6 f4 f2 f0   after 12-16 conv
+f15 f13 f11 f9  | f7 f5 f3 f1
+
 f11 f10 f9  f8  | f3 f2 f1 f0   unpack
 f15 f14 f13 f12 | f7 f6 f5 f4
 
@@ -66,11 +69,19 @@ f15 f14 f11 f10 | f7 f6 f3 f2
 #define CONVERT_CI12_2CF32_BLOCK_OPT(reg, res0, res1) \
 {   \
     __m256i result0, result1; \
-    CONVERT_CI12_2CI16_BLOCK_OPT(reg, result0, result1); \
+    CONVERT_CI12_2CI32_BLOCK_OPT(reg, result0, result1); \
     \
-    res0 = _mm256_cvtepi32_ps(result0); \
-    res1 = _mm256_cvtepi32_ps(result1); \
+    res0 = _mm256_mul_ps(_mm256_cvtepi32_ps(result0), scale2); \
+    res1 = _mm256_mul_ps(_mm256_cvtepi32_ps(result1), scale2); \
+}
+
+#define CONVERT_CI12_4CF32_BLOCK_OPT(reg0, reg1, res0, res1, res2, res3) \
+{   \
+    __m256i r0, r1, r2, r3; \
+    CONVERT_CI12_4CI32_BLOCK_OPT(reg0, reg1, r0, r1, r2, r3); \
     \
-    res0 = _mm256_mul_ps(res0, scale2); \
-    res1 = _mm256_mul_ps(res1, scale2); \
+    res0 = _mm256_mul_ps(_mm256_cvtepi32_ps(r0), scale2); \
+    res1 = _mm256_mul_ps(_mm256_cvtepi32_ps(r1), scale2); \
+    res2 = _mm256_mul_ps(_mm256_cvtepi32_ps(r2), scale2); \
+    res3 = _mm256_mul_ps(_mm256_cvtepi32_ps(r3), scale2); \
 }
