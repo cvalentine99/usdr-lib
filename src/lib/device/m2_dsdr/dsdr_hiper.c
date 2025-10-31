@@ -688,6 +688,16 @@ int dsdr_hiper_dsdr_hiper_exp_reg_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_
         case 0x26:
             res = tca6424a_reg8_get(hiper->dev, hiper->subdev, I2C_TCA6424AR_U115, TCA6424_OUT0 + (addr - 0x24), &di8);
             break;
+
+        case 0x27:
+        case 0x28:
+        case 0x29:
+            if (hiper->rev == HIPER_REV2) {
+                res = tca6424a_reg8_get(hiper->dev, hiper->subdev, I2C_TCA6424AR_U110, TCA6424_OUT0 + (addr - 0x27), &di8);
+            } else {
+                di8 = 0xff;
+            }
+            break;
         default:
             return -EINVAL;
         }
