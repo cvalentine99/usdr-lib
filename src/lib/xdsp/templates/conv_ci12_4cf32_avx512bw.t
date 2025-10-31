@@ -34,22 +34,19 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         #include "conv_i12_f32_avx512bw.inc"
 
         __m512i y0, y1;
-        __m512 res0, res1, res2, res3;
+        __m512 f0, f1, f2, f3;
 #if UNWRAP_CNT > 1
         __m512i y2, y3;
-        __m512 res4, res5, res6, res7;
+        __m512 f4, f5, f6, f7;
 #if UNWRAP_CNT > 2
         __m512i y4, y5;
-        __m512 res8, res9, resA, resB;
+        __m512 f8, f9, fA, fB;
 #if UNWRAP_CNT > 3
         __m512i y6, y7;
-        __m512 resC, resD, resE, resF;
+        __m512 fC, fD, fE, fF;
 #endif
 #endif
 #endif
-
-        const __m512i idx0 = _mm512_set_epi64(13, 9,12, 8,5,1,4,0);
-        const __m512i idx1 = _mm512_set_epi64(15,11,14,10,7,3,6,2);
 
         for(; i >= 96 * UNWRAP_CNT; i -= 96 * UNWRAP_CNT)
         {
@@ -70,48 +67,21 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
 
             in += UNWRAP_CNT * 12;
 
-            CONVERT_I12_F32_BLOCK(y0, res0, res1);
-            CONVERT_I12_F32_BLOCK(y1, res2, res3);
+            CONVERT_CI12_4CF32_BLOCK_OPT(y0, y1, f0, f1, f2, f3);
 #if UNWRAP_CNT > 1
-            CONVERT_I12_F32_BLOCK(y2, res4, res5);
-            CONVERT_I12_F32_BLOCK(y3, res6, res7);
+            CONVERT_CI12_4CF32_BLOCK_OPT(y2, y3, f4, f5, f6, f7);
 #if UNWRAP_CNT > 2
-            CONVERT_I12_F32_BLOCK(y4, res8, res9);
-            CONVERT_I12_F32_BLOCK(y5, resA, resB);
+            CONVERT_CI12_4CF32_BLOCK_OPT(y4, y5, f8, f9, fA, fB);
 #if UNWRAP_CNT > 3
-            CONVERT_I12_F32_BLOCK(y6, resC, resD);
-            CONVERT_I12_F32_BLOCK(y7, resE, resF);
+            CONVERT_CI12_4CF32_BLOCK_OPT(y6, y7, fC, fD, fE, fF);
 #endif
 #endif
 #endif
 
-            __m512d d0 = _mm512_shuffle_pd(_mm512_castps_pd(res0), _mm512_castps_pd(res1), 0b00000000);
-            __m512d d1 = _mm512_shuffle_pd(_mm512_castps_pd(res0), _mm512_castps_pd(res1), 0b11111111);
-            __m512d d2 = _mm512_shuffle_pd(_mm512_castps_pd(res2), _mm512_castps_pd(res3), 0b00000000);
-            __m512d d3 = _mm512_shuffle_pd(_mm512_castps_pd(res2), _mm512_castps_pd(res3), 0b11111111);
-#if UNWRAP_CNT > 1
-            __m512d d4 = _mm512_shuffle_pd(_mm512_castps_pd(res4), _mm512_castps_pd(res5), 0b00000000);
-            __m512d d5 = _mm512_shuffle_pd(_mm512_castps_pd(res4), _mm512_castps_pd(res5), 0b11111111);
-            __m512d d6 = _mm512_shuffle_pd(_mm512_castps_pd(res6), _mm512_castps_pd(res7), 0b00000000);
-            __m512d d7 = _mm512_shuffle_pd(_mm512_castps_pd(res6), _mm512_castps_pd(res7), 0b11111111);
-#if UNWRAP_CNT > 2
-            __m512d d8 = _mm512_shuffle_pd(_mm512_castps_pd(res8), _mm512_castps_pd(res9), 0b00000000);
-            __m512d d9 = _mm512_shuffle_pd(_mm512_castps_pd(res8), _mm512_castps_pd(res9), 0b11111111);
-            __m512d dA = _mm512_shuffle_pd(_mm512_castps_pd(resA), _mm512_castps_pd(resB), 0b00000000);
-            __m512d dB = _mm512_shuffle_pd(_mm512_castps_pd(resA), _mm512_castps_pd(resB), 0b11111111);
-#if UNWRAP_CNT > 3
-            __m512d dC = _mm512_shuffle_pd(_mm512_castps_pd(resC), _mm512_castps_pd(resD), 0b00000000);
-            __m512d dD = _mm512_shuffle_pd(_mm512_castps_pd(resC), _mm512_castps_pd(resD), 0b11111111);
-            __m512d dE = _mm512_shuffle_pd(_mm512_castps_pd(resE), _mm512_castps_pd(resF), 0b00000000);
-            __m512d dF = _mm512_shuffle_pd(_mm512_castps_pd(resE), _mm512_castps_pd(resF), 0b11111111);
-#endif
-#endif
-#endif
-
-            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(d0, idx0, d2));
-            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(d1, idx0, d3));
-            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(d0, idx1, d2));
-            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(d1, idx1, d3));
+            _mm512_store_ps(outdata_0, f0);
+            _mm512_store_ps(outdata_1, f1);
+            _mm512_store_ps(outdata_2, f2);
+            _mm512_store_ps(outdata_3, f3);
 
             outdata_0 += 16;
             outdata_1 += 16;
@@ -119,10 +89,10 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
             outdata_3 += 16;
 
 #if UNWRAP_CNT > 1
-            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(d4, idx0, d6));
-            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(d5, idx0, d7));
-            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(d4, idx1, d6));
-            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(d5, idx1, d7));
+            _mm512_store_ps(outdata_0, f4);
+            _mm512_store_ps(outdata_1, f5);
+            _mm512_store_ps(outdata_2, f6);
+            _mm512_store_ps(outdata_3, f7);
 
             outdata_0 += 16;
             outdata_1 += 16;
@@ -130,20 +100,20 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
             outdata_3 += 16;
 
 #if UNWRAP_CNT > 2
-            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(d8, idx0, dA));
-            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(d9, idx0, dB));
-            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(d8, idx1, dA));
-            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(d9, idx1, dB));
+            _mm512_store_ps(outdata_0, f8);
+            _mm512_store_ps(outdata_1, f9);
+            _mm512_store_ps(outdata_2, fA);
+            _mm512_store_ps(outdata_3, fB);
 
             outdata_0 += 16;
             outdata_1 += 16;
             outdata_2 += 16;
             outdata_3 += 16;
 #if UNWRAP_CNT > 3
-            _mm512_storeu_pd(outdata_0, _mm512_permutex2var_pd(dC, idx0, dE));
-            _mm512_storeu_pd(outdata_1, _mm512_permutex2var_pd(dD, idx0, dF));
-            _mm512_storeu_pd(outdata_2, _mm512_permutex2var_pd(dC, idx1, dE));
-            _mm512_storeu_pd(outdata_3, _mm512_permutex2var_pd(dD, idx1, dF));
+            _mm512_store_ps(outdata_0, fC);
+            _mm512_store_ps(outdata_1, fD);
+            _mm512_store_ps(outdata_2, fE);
+            _mm512_store_ps(outdata_3, fF);
 
             outdata_0 += 16;
             outdata_1 += 16;
@@ -154,25 +124,55 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
 #endif
         }
 
-        #undef CONVERT_I12_F32_BLOCK
         #undef CONVERT_I12_I16_BLOCK
+        #undef CONVERT_I12_2I32_SEPARATED    
+        #undef CONVERT_CI12_2CI32_BLOCK_OPT
+        #undef CONVERT_CI12_4CI32_BLOCK_OPT
+        
+        #undef CONVERT_I12_F32_BLOCK
+        #undef CONVERT_I12_F32_BLOCK_STORE1
+        #undef CONVERT_CI12_2CF32_BLOCK_OPT
+        #undef CONVERT_CI12_4CF32_BLOCK_OPT
     }
+
 
     //AVX2 block
     {
-        #include "conv_ci12_4cf32_avx2.inc"
+        #include "conv_i12_i16_avx2.inc"
+        #include "conv_i12_f32_avx2.inc"
 
         if(i >= 48)
         {
-            __m256i r0 = _mm256_maskload_epi64((const long long*)(in + 0), load_mask);
-            __m256i r1 = _mm256_maskload_epi64((const long long*)(in + 3), load_mask);
+            __m256i y0 = _mm256_maskload_epi64((const long long*)(in + 0), load_mask);
+            __m256i y1 = _mm256_maskload_epi64((const long long*)(in + 3), load_mask);
+
+            __m256 f0, f1, f2, f3;
+
+            CONVERT_CI12_4CF32_BLOCK_OPT(y0, y1, f0, f1, f2, f3);
+
+            _mm256_store_ps(outdata_0 + 0, f0);
+            _mm256_store_ps(outdata_1 + 0, f1);
+            _mm256_store_ps(outdata_2 + 0, f2);
+            _mm256_store_ps(outdata_3 + 0, f3);
+
+            outdata_0 += 8;
+            outdata_1 += 8;
+            outdata_2 += 8;
+            outdata_3 += 8;
+
             in += 6;
             i -= 48;
-
-            CONVERT_CI12_4F32_BLOCK(r0, r1);
         }
-
-        #undef CONVERT_CI12_4F32_BLOCK
+        
+        #undef CONVERT_I12_I16_BLOCK
+        #undef CONVERT_I12_2I32_SEPARATED    
+        #undef CONVERT_CI12_2CI32_BLOCK_OPT
+        #undef CONVERT_CI12_4CI32_BLOCK_OPT
+        
+        #undef CONVERT_I12_F32_BLOCK
+        #undef CONVERT_I12_F32_BLOCK_STORE1
+        #undef CONVERT_CI12_2CF32_BLOCK_OPT
+        #undef CONVERT_CI12_4CF32_BLOCK_OPT
     }
 
     //Generic block
