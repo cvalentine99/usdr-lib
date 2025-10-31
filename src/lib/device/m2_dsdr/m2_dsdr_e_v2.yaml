@@ -8,7 +8,7 @@ revision:     "0.0.1"
 processors:   [ c ]
 bus:
     type: VIRTUAL
-    usdr_path: /debug/hw/dsdr_hiper_exp/0/reg
+    usdr_path: /debug/hw/dsdr_hiper_exp_v2/0/reg
     wr_mask: 0x80000000
 addr_width:   8
 data_width:   24

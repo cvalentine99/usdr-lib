@@ -227,6 +227,9 @@ static int dsdr_hiper_senslms4temp_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64
 static int dsdr_hiper_senslms5temp_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t* ovalue);
 
 
+static const usdr_dev_param_func_t s_fe_parameters_v2[] = {
+    { "/debug/hw/dsdr_hiper_exp_v2/0/reg" , { dsdr_hiper_dsdr_hiper_exp_reg_set, dsdr_hiper_dsdr_hiper_exp_reg_get }  },
+};
 
 static const usdr_dev_param_func_t s_fe_parameters[] = {
     { "/debug/hw/lms8001/0/reg" ,  { dsdr_hiper_debug_lms8001_u1_reg_set, dsdr_hiper_debug_lms8001_u1_reg_get }},
@@ -910,6 +913,14 @@ int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8a_chip
                                               (void*)dfe,
                                               s_fe_parameters,
                                               SIZEOF_ARRAY(s_fe_parameters));
+
+    if (dfe->rev == HIPER_REV2) {
+        res = res ? res : usdr_vfs_obj_param_init_array_param(base,
+                                                              (void*)dfe,
+                                                              s_fe_parameters_v2,
+                                                              SIZEOF_ARRAY(s_fe_parameters_v2));
+    }
+
     if (res)
         return res;
 
