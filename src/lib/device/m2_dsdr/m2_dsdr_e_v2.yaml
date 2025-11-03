@@ -3,7 +3,7 @@
 
 # Register desc and visual map
 name:         M2_DSDR_V2
-desc:         Hiper board control
+desc:         Hiper v2 board control
 revision:     "0.0.1"
 processors:   [ c ]
 bus:
@@ -140,70 +140,18 @@ pages:
             desc: IF LNA control mask for Channel A
             opts: *if-lna-opts
 #
-# 0x22 and 0x23 for HB rev 1
-#      - addr: 0x22
-#        name: SW_OUT
-#        fields:
-##
-#          - bits: "6"
-#            name: RX_H_CHA_R2D_V1
-#            desc: Channel A RX OUT selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "7"
-#            name: RX_H_CHB_R2D_V2
-#            desc: Channel B RX OUT selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "4"
-#            name: RX_H_CHC_R2C_V1
-#            desc: Channel C RX OUT selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "5"
-#            name: RX_H_CHD_R2C_V2
-#            desc: Channel D RX OUT selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "3"
-#            name: TX_L_CHA
-#            desc: Channel A TX OUT selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "2"
-#            name: TX_L_CHB
-#            desc: Channel B TX OUT selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "1"
-#            name: TX_L_CHC
-#            desc: Channel C TX OUT selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "0"
-#            name: TX_L_CHD
-#            desc: Channel D TX OUT selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#
-#      - addr: 0x23
-#        name: SW_IN
-#        fields:
-##
-#          - bits: "0"
-#            name: RX_L_CHA_R2B_V1
-#            desc: Channel A RX IN selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "1"
-#            name: RX_L_CHB_R2B_V2
-#            desc: Channel B RX IN selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "2"
-#            name: RX_L_CHC_R2A_V1
-#            desc: Channel C RX IN selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "3"
-#            name: RX_L_CHD_R2A_V2
-#            desc: Channel D RX IN selection, 2.5-7.1 GHz (0) or 0.4-3.5 GHz (1)
-#          - bits: "4"
-#            name: TX_H_CHA
-#            desc: Channel A TX IN selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "5"
-#            name: TX_H_CHB
-#            desc: Channel B TX IN selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "6"
-#            name: TX_H_CHC
-#            desc: Channel C TX IN selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-#          - bits: "7"
-#            name: TX_H_CHD
-#            desc: Channel D TX IN selection, 2.5-7.1 GHz (1) or 0.4-3.5 GHz (0)
-
-#
 # 0x22 and 0x23 for HB rev 2
       - addr: 0x22
         name: SW_OUT_RX_CD
         fields:
+          - bits: "5:4"
+            name: OUT_RX_CHC
+            desc: CHC
+            opts: *r2rx-out-opts
+          - bits: "7:6"
+            name: OUT_RX_CHD
+            desc: CHD
+            opts: *r2rx-out-opts
           - bits: "0"
             name: OUT_TX_CHD
             desc: OUT_TX_CHD
@@ -216,14 +164,6 @@ pages:
           - bits: "3"
             name: OUT_TX_CHA
             desc: OUT_TX_CHA
-          - bits: "5:4"
-            name: OUT_RX_CHC
-            desc: CHC
-            opts: *r2rx-out-opts
-          - bits: "7:6"
-            name: OUT_RX_CHD
-            desc: CHD
-            opts: *r2rx-out-opts
 #
       - addr: 0x23
         name: SW_OUT_RX_AB
