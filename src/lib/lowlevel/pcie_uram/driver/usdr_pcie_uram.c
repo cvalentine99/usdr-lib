@@ -612,8 +612,13 @@ static int usdr_stream_free(struct usdr_dev *usdrdev, unsigned sno)
         return 0;
 
     // Release DMA buffers
-    // Check that mapping is invalid
+    if (usdrdev->dl.stream_core[sno] == USDR_MAKE_COREID(USDR_CS_STREAM, USDR_SC_TXDMA_OLD)) {
+        usdr_reg_wr32(usdrdev, usdrdev->dl.stream_cfg_base[sno] + s->dma_buffs, 0);
+    } else {
+        usdr_reg_wr32(usdrdev, usdrdev->dl.stream_cfg_base[sno] + 7 * s->dma_buffs, 0);
+    }
 
+    // Destroy buffers
     for (i = s->dma_buffs; i > 0; i--) {
         dma_free_attrs(&usdrdev->pdev->dev,
                        s->dma_buff_size,
@@ -913,8 +918,8 @@ static int usdr_stream_initialize(struct usdr_dev *usdrdev,
                     goto failed_alloc;
             }
             s->dmab[i].uvirt = NULL;
-            //dev_notice(&usdrdev->pdev->dev, "buf[%d]=%lx [virt %p]\n", i,
-            //           (unsigned long)s->dmab[i].phys, s->dmab[i].kvirt);
+            //dev_notice(&usdrdev->pdev->dev, "buf[%d]=%lx len=%d [virt %px]\n", i,
+            //           (unsigned long)s->dmab[i].phys, s->dma_buff_size, s->dmab[i].kvirt);
     }
 
     // Initialize dma buffer pointer in the dev
@@ -956,6 +961,11 @@ exit_success:
     } else {
     	// Clear spurious interrupts
     	atomic_xchg(&usdrdev->irq_ev_cnt[usdrdev->dl.stream_int_number[sno]], 0);
+
+        usdr_reg_wr32(usdrdev,
+                      usdrdev->dl.stream_cfg_base[sno] + 7 * sdma->dma_bufs,
+                      sdma->dma_buf_sz - 1);
+        dev_notice(&usdrdev->pdev->dev, "RX stream is limited to %d bytes\n", sdma->dma_buf_sz);
     }
     return 0;
 
