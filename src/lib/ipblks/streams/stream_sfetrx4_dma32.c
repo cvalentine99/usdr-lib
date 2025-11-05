@@ -161,23 +161,60 @@ int _sfetrx4_stream_recv(stream_handle_t* str,
     res = ops->recv_dma_wait(dev, 0,
                              stream->ll_streamo,
                              (void**)&dma_buf, &oob_data, &oob_size, timeout);
-    if (res < 0)
+    if (res == -ETIMEDOUT) {
+    } else if (res < 0)
         return res;
+
+    uint32_t dma_stat = oob_data[1];
+    unsigned dbno_inram;     // BUF# filled in FIFO RAM
+    unsigned dbno_xfred;     // BUF# transferred to host
+    unsigned dbno_ntfysent;  // BUF# notification sent
+    unsigned dbno_confirmed; // BUF# confirmed by user (can reuse again)
+    unsigned fe_stat;        // BUF# in FE
+    bool srdy = dma_stat >> 31;
+    fe_stat = (((dma_stat >> 22) & 3) << 4) |
+              (((dma_stat >> 14) & 3) << 2) |
+              (((dma_stat >> 6) & 3) << 0);
+    dbno_confirmed = (dma_stat >> 0) & 0x3f;
+    dbno_xfred = (dma_stat >> 8) & 0x3f;
+    dbno_inram = (dma_stat >> 16) & 0x3f;
+    dbno_ntfysent = (dma_stat >> 24) & 0x3f;
+
+#if DEBUG_DMA_BUFFERS
+    bool santify_fail = false;
+    {
+        unsigned a = dbno_inram, b = dbno_xfred, c = dbno_ntfysent;
+        unsigned d1 = (a - b) & 0x3f;
+        unsigned d2 = (b - c) & 0x3f;
+        if ((d1 >= 32) || (d2 >= 32)) {
+            santify_fail = true;
+        }
+    }
+#else
+#define santify_fail false
+#endif
+
+    if (res == -ETIMEDOUT) {
+        USDR_LOG("UDMS", santify_fail ? USDR_LOG_ERROR : USDR_LOG_INFO, "Recv %016" PRIx64 ".%016" PRIx64 " TIMEDOUT:%d buf=%p seq=%16" PRIu64 " %d.%2d/%2d/%2d/%2d/%2d\n", oob_data[0], oob_data[1], res, dma_buf,
+                 stream->rcnt, srdy, fe_stat, dbno_inram, dbno_xfred, dbno_ntfysent, dbno_confirmed);
+        return res;
+    }
 
     if (oob_data[0] & 0xffffff) {
         unsigned pkt_lost = oob_data[0] & 0xffffff;
-        USDR_LOG("UDMS", USDR_LOG_INFO, "Recv %016" PRIx64 ".%016" PRIx64 " EXTRA:%d buf=%p seq=%16" PRIu64 "\n", oob_data[0], oob_data[1], res, dma_buf,
-                 stream->rcnt);
+        USDR_LOG("UDMS", santify_fail ? USDR_LOG_ERROR : USDR_LOG_INFO, "Recv %016" PRIx64 ".%016" PRIx64 " EXTRA:%d buf=%p seq=%16" PRIu64 " %d.%2d/%2d/%2d/%2d/%2d\n", oob_data[0], oob_data[1], res, dma_buf,
+                 stream->rcnt, srdy, fe_stat, dbno_inram, dbno_xfred, dbno_ntfysent, dbno_confirmed);
 
         stream->stats.fe_drop += pkt_lost;
         stream->r_ts += stream->pkt_symbs * pkt_lost;
     } else if ((oob_data[0] >> 32) != stream->burst_mask) {
-        USDR_LOG("UDMS", USDR_LOG_INFO, "Recv %016" PRIx64 ".%016" PRIx64 " [%08x] EXTRA:%d buf=%p seq=%16" PRIu64 "\n", oob_data[0], oob_data[1], stream->burst_mask, res, dma_buf,
-                stream->rcnt);
+        USDR_LOG("UDMS", santify_fail ? USDR_LOG_ERROR : USDR_LOG_INFO, "Recv %016" PRIx64 ".%016" PRIx64 " [%08x] EXTRA:%d buf=%p seq=%16" PRIu64 " %d.%2d/%2d/%2d/%2d/%2d\n", oob_data[0], oob_data[1], stream->burst_mask, res, dma_buf,
+                stream->rcnt, srdy, fe_stat, dbno_inram, dbno_xfred, dbno_ntfysent, dbno_confirmed);
 
     } else {
-        USDR_LOG("UDMS", USDR_LOG_DEBUG, "Recv %016" PRIx64 ".%016" PRIx64 " EXTRA:- buf=%p seq=%16" PRIu64 "\n", oob_data[0], oob_data[1], dma_buf,
-                 stream->rcnt);
+        USDR_LOG("UDMS",
+                 santify_fail ? USDR_LOG_ERROR : USDR_LOG_DEBUG, "Recv %016" PRIx64 ".%016" PRIx64 " EXTRA:- buf=%p seq=%16" PRIu64 " %d.%2d/%2d/%2d/%2d/%2d\n", oob_data[0], oob_data[1], dma_buf,
+                 stream->rcnt, srdy, fe_stat, dbno_inram, dbno_xfred, dbno_ntfysent, dbno_confirmed);
     }
 
     stream->stats.pktok ++;
