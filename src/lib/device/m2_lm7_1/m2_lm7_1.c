@@ -124,7 +124,7 @@ const usdr_dev_param_constant_t s_params_m2_lm7_1_rev000[] = {
 
     { "/ll/qspi_flash/core", USDR_MAKE_COREID(USDR_CS_BUS, USDR_QSPI_FLASH_24_RW) },
     { "/ll/qspi_flash/base", M2PCI_REG_QSPI_FLASH },
-    { "/ll/qspi_flash/master_off", 0x1C0000 },
+//    { "/ll/qspi_flash/master_off", 0x1C0000 },
 
     { "/ll/gpi/0/core", USDR_MAKE_COREID(USDR_CS_GPI, USDR_GPI_32BIT_12) },
     { "/ll/gpi/0/base", M2PCI_REG_RD_GPI0_12 },
@@ -249,6 +249,7 @@ static int dev_m2_lm7_1_lms7002rxlml_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint
 static int dev_m2_lm7_1_debug_clkinfo_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 
 static int dev_m2_lm7_1_revision_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *ovalue);
+static int dev_m2_lm7_1_qspi_flash_master_off_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *ovalue);
 
 static int dev_m2_lm7_1_sdr_tx_phase_ovr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
 static int dev_m2_lm7_1_sdr_rx_phase_ovr_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
@@ -355,6 +356,8 @@ const usdr_dev_param_func_t s_fparams_m2_lm7_1_rev000[] = {
     { "/debug/clk_info",            { dev_m2_lm7_1_debug_clkinfo_set, NULL }},
 
     { "/dm/revision",               { NULL, dev_m2_lm7_1_revision_get }},
+
+    { "/ll/qspi_flash/master_off",  { NULL, dev_m2_lm7_1_qspi_flash_master_off_get }},
 };
 
 struct dev_m2_lm7_1_gps {
@@ -1230,6 +1233,17 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
 int dev_m2_lm7_1_usb_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t* ovalue)
 {
     *ovalue = 0;
+    return 0;
+}
+
+int dev_m2_lm7_1_qspi_flash_master_off_get(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t *ovalue)
+{
+    struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)ud;
+    if (d->xdev.ssdr_pro) {
+        *ovalue = 0x07b0000;
+    } else {
+        *ovalue = MASTER_IMAGE_OFF;
+    }
     return 0;
 }
 
