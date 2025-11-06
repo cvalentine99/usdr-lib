@@ -9,7 +9,7 @@
 #include "fft_window_functions.h"
 
 #define FFT_SIZE (65536)
-static const unsigned packet_lens[3] = { 256, 4096, FFT_SIZE };
+static const unsigned packet_lens[3] = { 4096, 16384, FFT_SIZE };
 
 #define SPEED_MEASURE_ITERS 1000000
 #define EPSILON 1E-4
@@ -24,10 +24,9 @@ static generic_opts_t max_opt = OPT_GENERIC;
 
 static void recalcWnd(unsigned fft_size)
 {
-    for(unsigned i = 0; i < fft_size * 2; i += 2)
+    for(unsigned i = 0; i < fft_size; i++)
     {
         wnd[i] = (1 - cos(2 * M_PI * i / fft_size)) / 2;
-        wnd[i+1] = (1 - cos(2 * M_PI * (i + 1) / fft_size)) / 2;
     }
 }
 
@@ -37,13 +36,13 @@ static void setup()
     res = res ? res : posix_memalign((void**)&in,          ALIGN_BYTES, sizeof(wvlt_fftwf_complex) * FFT_SIZE);
     res = res ? res : posix_memalign((void**)&out,         ALIGN_BYTES, sizeof(wvlt_fftwf_complex) * FFT_SIZE);
     res = res ? res : posix_memalign((void**)&out_etalon,  ALIGN_BYTES, sizeof(wvlt_fftwf_complex) * FFT_SIZE);
-    res = res ? res : posix_memalign((void**)&wnd,         ALIGN_BYTES, sizeof(float) * 2 * FFT_SIZE);
+    res = res ? res : posix_memalign((void**)&wnd,         ALIGN_BYTES, sizeof(float) * FFT_SIZE);
     ck_assert_int_eq(res, 0);
 
     for(unsigned i = 0; i < FFT_SIZE; ++i)
     {
-        in[i][0] =  100.0f * (float)(rand()) / (float)RAND_MAX;
-        in[i][1] = -100.0f * (float)(rand()) / (float)RAND_MAX;
+        in[i][0] =  1.0f * (float)(rand()) / (float)RAND_MAX;
+        in[i][1] = -1.0f * (float)(rand()) / (float)RAND_MAX;
     }
 
     recalcWnd(FFT_SIZE);
