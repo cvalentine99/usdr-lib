@@ -964,10 +964,13 @@ int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8a_chip
         cfg->rx_dsa = 0;
         cfg->tx_band = IFBAND_AUTO;
         cfg->ant_sel = ANT_RX_TRX;
+        cfg->rx_en = 0;
+        cfg->tx_en = 0;
         cfg->rx_freq = 0;
         cfg->rx_nco = 0;
         cfg->tx_freq = 0;
         cfg->tx_nco = 0;
+        cfg->pa_2stage_bypass = 0;
         cfg->lms8_lna_gain = 0;
         cfg->lms8_pa_gain = 0;
         cfg->lms8_rx_hlmix_gain = 15;
@@ -1340,10 +1343,10 @@ enum led_rx_cals {
 
 // Switch on RX path =>  ANT_RX external port / rfsw_rxtx / LB
 enum rfsw_tddfdd_bits {
-    EXP_TDDFDD_SD           = 0b00, // LB SW is on
-    EXP_TDDFDD_P1_LB_SW     = 0b01, // LB SW is on
-    EXP_TDDFDD_P2_TRX_SW    = 0b10,
-    EXP_TDDFDD_P3_ANT_RX    = 0b11,
+    EXP_TDDFDD_SD        = TDD_FDD_OPTS_REV0_LNA_TO_RX_____REV2_SHUTDOWN, // LB SW is on
+    EXP_TDDFDD_P1_LB_SW  = TDD_FDD_OPTS_REV0_LNA_TO_RX_____REV2_LNA_TO_LB, // LB SW is on
+    EXP_TDDFDD_P2_TRX_SW = TDD_FDD_OPTS_REV0_LNA_TO_TDDSW__REV2_LNA_TO_TDDSW,
+    EXP_TDDFDD_P3_ANT_RX = TDD_FDD_OPTS_REV0_LNA_TO_TDDSW__REV2_LNA_TO_RX,
 };
 
 static void _hiper_antenna_sw_map(bool rev2, unsigned antenna, bool rxen, bool txen, uint8_t* gpo_ctrl, unsigned* inswlb, unsigned *arx, unsigned *atx,
@@ -1367,8 +1370,8 @@ static void _hiper_antenna_sw_map(bool rev2, unsigned antenna, bool rxen, bool t
         *inswlb = 0;
         *arx = rxen;
         *atx = txen;
-        *exp_led_trx = LED_TRX_TXO;
-        *exp_led_rx = LED_RX_ON;
+        *exp_led_trx = txen ? LED_TRX_TXO : LED_TRX_OFF;
+        *exp_led_rx = rxen ? LED_RX_ON : LED_RX_OFF;
         break;
 
     case ANT_TRX_TERM:
@@ -1382,7 +1385,7 @@ static void _hiper_antenna_sw_map(bool rev2, unsigned antenna, bool rxen, bool t
         *inswlb = 0;
         *arx = rxen;
         *atx = 0;
-        *exp_led_trx = LED_TRX_RXO;
+        *exp_led_trx = rxen ? LED_TRX_RXO : LED_TRX_OFF;
         *exp_led_rx = LED_RX_OFF;
         break;
 
@@ -1398,7 +1401,7 @@ static void _hiper_antenna_sw_map(bool rev2, unsigned antenna, bool rxen, bool t
         *arx = rxen;
         *atx = 0;
         *exp_led_trx = LED_TRX_OFF;
-        *exp_led_rx = LED_RX_ON;
+        *exp_led_rx = rxen ? LED_RX_ON : LED_RX_OFF;
         break;
 
     case ANT_LOOPBACK:
@@ -1424,7 +1427,7 @@ static void _hiper_antenna_sw_map(bool rev2, unsigned antenna, bool rxen, bool t
         *inswlb = 0;
         *arx = rxen;
         *atx = txen;
-        *exp_led_trx = LED_TRX_TRX;
+        *exp_led_trx = (rxen && txen) ? LED_TRX_TRX : txen ? LED_TRX_TXO : rxen ? LED_TRX_RXO : LED_TRX_OFF;
         *exp_led_rx = LED_RX_OFF;
         break;
 
@@ -1625,7 +1628,7 @@ static void dsdr_hiper_fe_rx_band_upd(dsdr_hiper_fe_t* def, unsigned chno, unsig
     if (def->ucfg[chno].rx_band < RXBAND_OPTS_BAND_AUTO_L)
         return;
 
-    def->ucfg[chno].rx_band = (band == 0) ? RXBAND_OPTS_BAND_AUTO_L : (band == 1) ? RXBAND_OPTS_BAND_AUTO_H : RXBAND_OPTS_BAND_AUTO_BP;
+    def->ucfg[chno].rx_band = (band & 3);
     USDR_LOG("HIPR", USDR_LOG_WARNING, "RXBand[%d] switched to %c (%d)\n", chno,
              def->ucfg[chno].rx_band == RXBAND_OPTS_BAND_AUTO_H ? 'H' :
              def->ucfg[chno].rx_band == RXBAND_OPTS_BAND_AUTO_L ? 'L' :
