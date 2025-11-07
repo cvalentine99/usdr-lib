@@ -1483,13 +1483,12 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
     d->cfg_afe_type = afeType;
     d->jesdv = jesdv;
-    USDR_LOG("XDEV", USDR_LOG_ERROR, "Configuration: %s\n", d->afecongiguration);
-    USDR_LOG("XDEV", USDR_LOG_WARNING, "AFE type JESD204%c CH_TX=%02x CH_RX=%02x\n", (jesdv == DSDR_JESD204B_810_245) ? 'B' : 'C', d->hw_mask_tx, d->hw_mask_rx);
+    USDR_LOG("XDEV", USDR_LOG_ERROR, "Configuration: %s, Type: %d, AFE: %d, JESD204%c, CH_TX=%02x, CH_RX=%02x",
+             d->afecongiguration, d->type, d->cfg_afe_type, (jesdv == DSDR_JESD204B_810_245) ? 'B' : 'C', d->hw_mask_tx, d->hw_mask_rx);
 
     if (getenv("SKIPAFE")) {
         d->type = DSDR_KCU116_EVM;
     }
-
     if (d->type == DSDR_KCU116_EVM) {
         USDR_LOG("XDEV", USDR_LOG_ERROR, "Skipping AFE initialization! SR=%.2f\n", d->adc_rate / 1e6);
         res = res ? res : afe79xx_create_dummy(&d->st);
