@@ -142,6 +142,17 @@ static const uint64_t s_filerbank_ranges[] = {
 };
 
 
+enum led_rtx_vals {
+    LED_TRX_RXO = 0,
+    LED_TRX_OFF = 1,
+    LED_TRX_TRX = 2,
+    LED_TRX_TXO = 3,
+};
+
+enum led_rx_cals {
+    LED_RX_ON = 0,
+    LED_RX_OFF = 1,
+};
 
 
 static int dsdr_hiper_debug_lms8001_u1_reg_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
@@ -810,15 +821,13 @@ int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8a_chip
 
     // TODO: sanity check
 
-    // Reset all LMS8001
-    // res = res ? res : tca6424a_reg16_set(dev, dfe->subdev, I2C_TCA6424AR_U115, TCA6424_OUT0, 0xffff);
-    // res = res ? res : tca6424a_reg8_set(dev, dfe->subdev, I2C_TCA6424AR_U115, TCA6424_OUT0 + 2, 0xff);
-    // if (res)
-    //     return res;
-
+    dfe->fe_ctrl_regs[IF_LNA- SW_RX_FILTER] = MAKE_M2_DSDR_E_IF_LNA(IF_LNA_CTRL_CHD_DISABLE, IF_LNA_CTRL_CHC_DISABLE, IF_LNA_CTRL_CHB_DISABLE, IF_LNA_CTRL_CHA_DISABLE);
     dfe->fe_ctrl_regs[ENABLE - SW_RX_FILTER] = MAKE_M2_DSDR_E_ENABLE(1, 0, 1, 1, 1, 1, 1, 1);
     dfe->fe_ctrl_regs[LMS8001_RESET - SW_RX_FILTER] = MAKE_M2_DSDR_E_LMS8001_RESET(1, 1, 1, 1, 1, 1, 1);
     dfe->fe_ctrl_regs[AUX_CTRL - SW_RX_FILTER] = MAKE_M2_DSDR_E_AUX_CTRL(0, 0, 0, 0, 1, 1, 1, 1);
+
+    dfe->fe_ctrl_regs[LED_TRX_CTRL - SW_RX_FILTER] = MAKE_M2_DSDR_E_LED_TRX_CTRL(LED_TRX_OFF, LED_TRX_OFF, LED_TRX_OFF, LED_TRX_OFF);
+    dfe->fe_ctrl_regs[LEDRX_CH_CTRL - SW_RX_FILTER] = MAKE_M2_DSDR_E_LEDRX_CH_CTRL(LED_RX_OFF, LED_RX_OFF, LED_RX_OFF, LED_RX_OFF, 0, 0, 0, 0);
     for (unsigned k = 0; k < SIZEOF_ARRAY(dfe->fe_ctrl_regs); k++) {
         res = res ? res : _hiper_update_expander_vreg(dfe, k, dfe->fe_ctrl_regs[k]);
     }
@@ -1328,18 +1337,6 @@ static void _hiper_fbank_map(unsigned filsel, unsigned *bout, unsigned *bin)
     default: *bout = SW_RX_FILTER_OUT_CHA_MUTE1; *bin = SW_RX_FILTER_IN_CHA_MUTE1; break;
     }
 }
-
-enum led_rtx_vals {
-    LED_TRX_RXO = 0,
-    LED_TRX_OFF = 1,
-    LED_TRX_TRX = 2,
-    LED_TRX_TXO = 3,
-};
-
-enum led_rx_cals {
-    LED_RX_ON = 0,
-    LED_RX_OFF = 1,
-};
 
 // Switch on RX path =>  ANT_RX external port / rfsw_rxtx / LB
 enum rfsw_tddfdd_bits {
