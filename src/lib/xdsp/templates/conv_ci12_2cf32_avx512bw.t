@@ -22,9 +22,6 @@ void TEMPLATE_FUNC_NAME(const void *__restrict indata_p,
         __m512i y0, y1;
         __m512 res0, res1, res2, res3;
 
-        const __m512i idx0 = _mm512_set_epi64(14,12,10,8,6,4,2,0);
-        const __m512i idx1 = _mm512_set_epi64(15,13,11,9,7,5,3,1);
-
         for(; i >= 96; i -= 96)
         {
             y0 = _mm512_maskz_loadu_epi64(0b00111111, (const long long*)(in + 0));

@@ -1,5 +1,5 @@
 const __m512i mask0 = _mm512_set1_epi64(0xfff00000fff00000);
-const __m512i mask1 = _mm512_set1_epi64(0x0000fff00000fff0);
+UNUSED const __m512i mask1 = _mm512_set1_epi64(0x0000fff00000fff0);
 
 const __m512i permmask = _mm512_set_epi32(11,10,9, 15,14, 8,7,6, 5,4,3, 13,12, 2,1,0);
 const __m512i shfl = _mm512_set_epi8(
@@ -12,7 +12,7 @@ const __m512i shfl = _mm512_set_epi8(
     0x0b, 0x0a, 0x09, 0x80, 0x08, 0x07, 0x06, 0x80,
     0x05, 0x04, 0x03, 0x80, 0x02, 0x01, 0x00, 0x80);
 
-const __m512i pidx = _mm512_set_epi64(7,5,3,1,6,4,2,0);
+UNUSED const __m512i pidx = _mm512_set_epi64(7,5,3,1,6,4,2,0);
 
 #define CONVERT_I12_I16_BLOCK(reg, result) \
 {   \
