@@ -54,8 +54,8 @@ x-r2rx-in-opts: &r2rx-in-opts
 
 x-r2rx-out-opts: &r2rx-out-opts
     0b00: DISABLE
-    0b01: RX_LOW
-    0b10: RX_HI
+    0b01: RX_HI
+    0b10: RX_LOW
     0b11: RX_BYPASS
 
 
