@@ -62,3 +62,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Local development markers
+base.dev
+bifurcation_en
+nodecint
+xdev
