@@ -23,6 +23,7 @@
 #include "../device/device_vfs.h"
 
 #include "pcie_uram_driver_if.h"
+#include "pcie_uram_regs.h"
 
 #include "../ipblks/si2c.h"
 #include "../ipblks/spiext.h"
@@ -573,14 +574,12 @@ int pcie_uram_dma_wait_or_alloc(struct pcie_uram_dev* d, bool rx, stream_t chann
                          channel, rx ? "recv" : "send", res);
             } else if (rx) {
                 unsigned stat[4];
-                // TODO: Remove hardcoded address to upper layer
-                pcie_reg_op_iommap(d, 4, &stat[0], 12, NULL, 0);
+                pcie_reg_op_iommap(d, PCIE_URAM_RX_DMA_STATUS_BASE, &stat[0], 12, NULL, 0);
                 USDR_LOG("PCIE", USDR_LOG_NOTE, "STR[%d]: PCIe recv dma buffer alloc timed out stat=%08x:%08x:%08x %08x!\n",
                          channel, stat[0], stat[1], stat[2], stat[3]);
             } else {
                 unsigned stat[4];
-                // TODO: Remove hardcoded address to upper layer
-                pcie_reg_op_iommap(d, 28, &stat[0], 16, NULL, 0);
+                pcie_reg_op_iommap(d, PCIE_URAM_TX_DMA_STATUS_BASE, &stat[0], 16, NULL, 0);
                 USDR_LOG("PCIE", USDR_LOG_NOTE, "STR[%d]: PCIe send dma buffer alloc timed out stat=%08x:%08x:%08x %08x!\n",
                          channel, stat[0], stat[1], stat[2], stat[3]);
             }

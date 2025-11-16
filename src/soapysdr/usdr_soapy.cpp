@@ -171,6 +171,17 @@ SoapyUSDR::SoapyUSDR(const SoapySDR::Kwargs &args_orig)
     }
     _dev = usdr_handle::get(dev);
 
+    uint64_t clk_rate = 0;
+    int clk_res = usdr_dme_get_uint(_dev->dev(), "/dm/sdr/refclk/frequency", &clk_rate);
+    if (clk_res == 0)
+    {
+        _master_clock_rate = static_cast<double>(clk_rate);
+    }
+    else
+    {
+        SoapySDR::logf(callLogLvl(), "SoapyUSDR::SoapyUSDR() unable to read master clock: %d", clk_res);
+    }
+
     if (args.count("refclk")) {
         // TODO:
         SoapySDR::logf(callLogLvl(), "SoapyUSDR::SoapyUSDR() set ref to internal clock");
@@ -652,12 +663,22 @@ void SoapyUSDR::setBandwidth(const int direction, const size_t channel, const do
     SoapySDR::logf(callLogLvl(), "SoapyUSDR::setBandwidth(%s, %g MHz)",dir, bw/1e6);
 
     std::unique_lock<std::recursive_mutex> lock(_dev->accessMutex);
-    res = usdr_dme_set_uint(_dev->dev(), pname, bw);
+    const uint64_t requested_bw = static_cast<uint64_t>(std::llround(bw));
+    res = usdr_dme_set_uint(_dev->dev(), pname, requested_bw);
     if (res)
         throw std::runtime_error("SoapyUSDR::setBandwidth(" + std::string(pname) + ") error");
 
-    // TODO readback
-    _actual_bandwidth[direction] = bw;
+    uint64_t actual_bw = 0;
+    int bw_res = usdr_dme_get_uint(_dev->dev(), pname, &actual_bw);
+    if (bw_res == 0)
+    {
+        _actual_bandwidth[direction] = static_cast<double>(actual_bw);
+    }
+    else
+    {
+        _actual_bandwidth[direction] = bw;
+        SoapySDR::logf(callLogLvl(), "SoapyUSDR::setBandwidth() readback failed (%d), using requested value", bw_res);
+    }
 }
 
 double SoapyUSDR::getBandwidth(const int direction, const size_t /*channel*/) const
@@ -680,17 +701,47 @@ SoapySDR::RangeList SoapyUSDR::getBandwidthRange(const int /*direction*/, const 
 void SoapyUSDR::setMasterClockRate(const double rate)
 {
     std::unique_lock<std::recursive_mutex> lock(_dev->accessMutex);
-    // TODO: get reference clock in case of autodetection
+    const uint64_t requested = (rate <= 0.0) ? 0ULL : static_cast<uint64_t>(std::llround(rate));
+    int res = usdr_dme_set_uint(_dev->dev(), "/dm/sdr/refclk/frequency", requested);
+    if (res)
+    {
+        throw std::runtime_error("SoapyUSDR::setMasterClockRate() unable to set reference clock");
+    }
 
-    SoapySDR::logf(callLogLvl(), "SoapyUSDR::setMasterClockRate(%.3f)", rate/1e6);
+    uint64_t actual_rate = 0;
+    res = usdr_dme_get_uint(_dev->dev(), "/dm/sdr/refclk/frequency", &actual_rate);
+    if (res == 0)
+    {
+        _master_clock_rate = static_cast<double>(actual_rate);
+    }
+    else
+    {
+        _master_clock_rate = rate;
+        SoapySDR::logf(callLogLvl(), "SoapyUSDR::setMasterClockRate() readback failed: %d", res);
+    }
+
+    SoapySDR::logf(callLogLvl(), "SoapyUSDR::setMasterClockRate(%.3f) => %.3f", rate/1e6, _master_clock_rate/1e6);
 }
 
 double SoapyUSDR::getMasterClockRate(void) const
 {
-    double rate = 0;
+    std::unique_lock<std::recursive_mutex> lock(_dev->accessMutex);
+    if (_master_clock_rate == 0.0)
+    {
+        uint64_t rate = 0;
+        int res = usdr_dme_get_uint(_dev->dev(), "/dm/sdr/refclk/frequency", &rate);
+        if (res == 0)
+        {
+            _master_clock_rate = static_cast<double>(rate);
+        }
+        else
+        {
+            SoapySDR::logf(callLogLvl(), "SoapyUSDR::getMasterClockRate() readback failed: %d", res);
+        }
+    }
 
-    SoapySDR::logf(callLogLvl(), "SoapyUSDR::getMasterClockRate() => %.3f", rate/1e6);
-    return rate;
+    SoapySDR::logf(callLogLvl(), "SoapyUSDR::getMasterClockRate() => %.3f", _master_clock_rate/1e6);
+    return _master_clock_rate;
 }
 
 SoapySDR::RangeList SoapyUSDR::getMasterClockRates(void) const
