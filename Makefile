@@ -1,7 +1,7 @@
 # Makefile for USDR library build and testing
 # This Makefile provides convenience targets for building userspace and kernel components
 
-.PHONY: all userspace driver clean help test
+.PHONY: all userspace driver clean help test update-todos
 
 # Default target
 all: userspace
@@ -13,6 +13,7 @@ help:
 	@echo "  make all          - Build userspace only (default)"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make test         - Run basic syntax checks"
+	@echo "  make update-todos - Update TODO_REPORT.md with current TODO items"
 	@echo ""
 	@echo "Note: Driver build requires kernel headers:"
 	@echo "  sudo apt install linux-headers-\$$(uname -r)"
@@ -78,3 +79,9 @@ test:
 		echo "  ✓ Hardcoded 0x3ff replaced"; \
 	fi
 	@echo "==> All checks passed!"
+
+# Update TODO report
+update-todos:
+	@echo "==> Updating TODO report..."
+	@./scripts/generate_todo_report.sh
+	@echo "==> TODO report updated!"
