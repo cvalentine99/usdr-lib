@@ -12,9 +12,7 @@
 #include "../ipblks/espi_flash.h"
 #include "../ipblks/xlnx_bitstream.h"
 #include "../device/m2_lm7_1/xsdr_ctrl.h"
-
-// TODO: get rid of this foo
-xsdr_dev_t* get_xsdr_dev(pdevice_t udev);
+#include "../device/m2_lm7_1/m2_lm7_1.h"
 
 static const struct idx_list s_method_list[] = {
     { "sdr_init_streaming",   SDR_INIT_STREAMING },
@@ -589,7 +587,7 @@ int generic_rpc_call(pdm_dev_t dmdev,
         unsigned param = (pcall->params.parameters_type[SDRC_PARAM] == SDRC_PARAM_TYPE_INT) ?
                              pcall->params.parameters_uint[SDRC_PARAM] : 0;
 
-        res = xsdr_calibrate(get_xsdr_dev(dmdev->lldev->pdev), chans, param, NULL);
+        res = xsdr_calibrate(m2_lm7_1_get_xsdr_dev(dmdev->lldev->pdev), chans, param, NULL);
         if (res)
             return res;
 
