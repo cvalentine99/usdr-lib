@@ -1476,7 +1476,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
         if (getenv("DSDR_M2_7950")) {
             // AFE7950
-            d->afecongiguration = "Afe79xxPg1_600_1.txt";
+            d->afecongiguration = "Afe79xxPg1_6664_491_7950.txt";
             afeType = 7950;
         }
         break;
