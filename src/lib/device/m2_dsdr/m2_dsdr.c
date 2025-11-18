@@ -1366,8 +1366,6 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     int res = 0;
     uint32_t hwid, usr2, pg, los, devid, jesdv;
     unsigned afeType = 0;
-    unsigned lms8a_step = LMS8_MPW2015;
-    unsigned lms8b_step = LMS8_MPW2015;
 
     d->subdev = 0;
     d->dsdr_state = STATE_IDLE;
@@ -1741,17 +1739,36 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     }
 
     if (d->type == DSDR_PCIE_HIPER_R0) {
-        if (getenv("LMS8A_MPW2024")) {
-            lms8a_step = LMS8_MPW2024;
-        }
-        if (getenv("LMS8B_MPW2024")) {
-            lms8b_step = LMS8_MPW2024;
+        unsigned override = 0;
+        unsigned* poverride = NULL;
+        const char* env_over;
+        if ((env_over = getenv("LMS8_MPW2024_MASK"))) {
+            bool ok = (strlen(env_over) == 6);
+            if (ok) {
+                for (unsigned i = 0; i < 6; i++) {
+                    if (env_over[i] == '0') {
+                    } else if (env_over[i] == '1') {
+                        override |= 1 << (5 - i);
+                    } else {
+                        ok = false;
+                    }
+                }
+            }
+
+            if (ok) {
+                poverride = &override;
+                USDR_LOG("DSDR", USDR_LOG_ERROR, "Applying external MPW mask for LMS8 chips: %d%d%d%d%d%d",
+                         (override >> 5) & 1, (override >> 4) & 1, (override >> 3) & 1,
+                         (override >> 2) & 1, (override >> 1) & 1, (override >> 0) & 1);
+            } else {
+                USDR_LOG("DSDR", USDR_LOG_ERROR, "Incorrect LMS8_MPW2024_MASK format!!! Should be like `LMS8_MPW_MASK=010101`\n");
+            }
         }
 
-        res = res ? res : dsdr_hiper_fe_create(dev, SPI_BUS_HIPER_FE, lms8a_step, lms8b_step, &d->hiper);
+        res = res ? res : dsdr_hiper_fe_create(dev, SPI_BUS_HIPER_FE, poverride, &d->hiper);
     }
 
-    usleep(100000);
+    res = res ? res : usleep(100000);
 
     // check state
     res = res ? res : dev_m2_dsdr_afe_health_get(udev, NULL, NULL);
