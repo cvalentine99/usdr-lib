@@ -159,6 +159,10 @@ enum {
 
     IGPO_TX_CHEN = 39,
     IGPO_RX_CHEN = 40,
+
+    IGPO_TX_AFETDD = 41,
+    IGPO_RX_AFETDD = 42,
+
 };
 
 enum {
@@ -1384,6 +1388,9 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     res = res ? res : dev_gpo_set(dev, IGPO_PWR_LMK, 0x0);
     res = res ? res : dev_gpo_set(dev, IGPO_RX_CHEN, 0x0);
     res = res ? res : dev_gpo_set(dev, IGPO_TX_CHEN, 0x0);
+    res = res ? res : dev_gpo_set(dev, IGPO_TX_AFETDD, 0x0);
+    res = res ? res : dev_gpo_set(dev, IGPO_RX_AFETDD, 0x0);
+
 
     // TODO check for AFE7903
     if (getenv("DSDR_AFE7903")) {
@@ -1710,7 +1717,10 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     usleep(100000);
     res = res ? res : dev_gpo_set(dev, IGPO_AFE_RST, 0x1);
 
-    usleep(100000);
+    res = res ? res : usleep(100000);
+
+    res = res ? res : dev_gpo_set(dev, IGPO_TX_AFETDD, 0x0f);
+    res = res ? res : dev_gpo_set(dev, IGPO_RX_AFETDD, 0x0f);
 
 
     res = res ? res : afe79xx_create(dev, d->subdev, 0, afeType, &d->st);
