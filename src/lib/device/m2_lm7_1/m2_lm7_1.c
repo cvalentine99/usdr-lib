@@ -141,6 +141,7 @@ const usdr_dev_param_constant_t s_params_m2_lm7_1_rev000[] = {
     { "/ll/dsp/atcrbs/0/base", M2PCI_REG_WR_LBDSP },
 
     { "/ll/sdr/0/rfic/0", (uintptr_t)"lms7002m" },
+
     { "/ll/sdr/max_hw_rx_chans",  2 },
     { "/ll/sdr/max_hw_tx_chans",  2 },
 
@@ -156,6 +157,14 @@ const usdr_dev_param_constant_t s_params_m2_lm7_1_rev000[] = {
 
     { "/ll/fe/0/spi_busno/0", -1},
     { "/ll/fe/0/i2c_busno/0", -1},
+};
+
+static const usdr_dev_param_constant_t xsdr_params_m2_lm7_1_rev000[] = {
+    { "/ll/device/name",  (uintptr_t)"xsdr"},
+};
+
+static const usdr_dev_param_constant_t ssdr_params_m2_lm7_1_rev000[] = {
+    { "/ll/device/name",  (uintptr_t)"ssdr"},
 };
 
 static int dev_m2_lm7_1_rate_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t value);
@@ -1199,6 +1208,19 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
     res = xsdr_init(&d->xdev);
     if (res)
         return res;
+
+    if (d->xdev.ssdr)
+    {
+        res = vfs_add_const_i64_vec(&udev->rootfs, ssdr_params_m2_lm7_1_rev000, SIZEOF_ARRAY(ssdr_params_m2_lm7_1_rev000));
+        if (res)
+            USDR_LOG("UDEV", USDR_LOG_WARNING, "Unable to set device name \"ssdr\"!\n");
+    }
+    else
+    {
+        res = vfs_add_const_i64_vec(&udev->rootfs, xsdr_params_m2_lm7_1_rev000, SIZEOF_ARRAY(xsdr_params_m2_lm7_1_rev000));
+        if (res)
+            USDR_LOG("UDEV", USDR_LOG_WARNING, "Unable to set device name \"xsdr\"!\n");
+    }
 
     d->xdev.dpump = d->double_pump;
 
