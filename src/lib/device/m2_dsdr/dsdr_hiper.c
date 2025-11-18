@@ -770,7 +770,7 @@ static int dsdr_hiper_initialize_lms8(dsdr_hiper_fe_t* dfe, unsigned addr, unsig
     return res;
 }
 #include <stdio.h>
-int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8a_chip, unsigned lms8b_chip,  dsdr_hiper_fe_t* dfe)
+int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned* plms8_mpw_mask,  dsdr_hiper_fe_t* dfe)
 {
     int res = 0;
     device_t* base = lowlevel_get_device(dev);
@@ -863,9 +863,10 @@ int dsdr_hiper_fe_create(lldev_t dev, unsigned int spix_num, unsigned lms8a_chip
     }
 
     // LMS8
+    unsigned lms8_mask = (plms8_mpw_mask) ? *plms8_mpw_mask : (dfe->rev == HIPER_REV2) ? 0b001100 : 0;
     for (unsigned k = 0; k < 6; k++) {
         uint32_t cfg = MAKE_SPIEXT_LSOPADR(MAKE_SPIEXT_CFG(LMS8_BCNTZ, k, LMS8_DIV), 0, spix_num);
-        res = res ? res : dsdr_hiper_initialize_lms8(dfe, cfg, (k == 2 || k == 3) ? lms8a_chip : lms8b_chip, &dfe->lms8[k]);
+        res = res ? res : dsdr_hiper_initialize_lms8(dfe, cfg, (lms8_mask >> k) & 1, &dfe->lms8[k]);
     }
 
     // ADF4002 (MUX -> GND -> DVDD readback as a sanity check)
@@ -1625,12 +1626,13 @@ static void dsdr_hiper_fe_rx_band_upd(dsdr_hiper_fe_t* def, unsigned chno, unsig
     if (def->ucfg[chno].rx_band < RXBAND_OPTS_BAND_AUTO_L)
         return;
 
-    def->ucfg[chno].rx_band = (band & 3);
+    //def->ucfg[chno].rx_band = (band & 3);
+    unsigned rx_band = (band & 3);
     USDR_LOG("HIPR", USDR_LOG_WARNING, "RXBand[%d] switched to %c (%d)\n", chno,
-             def->ucfg[chno].rx_band == RXBAND_OPTS_BAND_AUTO_H ? 'H' :
-             def->ucfg[chno].rx_band == RXBAND_OPTS_BAND_AUTO_L ? 'L' :
-             def->ucfg[chno].rx_band == RXBAND_OPTS_BAND_AUTO_BP ? 'B' : 'D',
-             def->ucfg[chno].rx_band);
+             rx_band == RXBAND_OPTS_BAND_AUTO_H ? 'H' :
+             rx_band == RXBAND_OPTS_BAND_AUTO_L ? 'L' :
+             rx_band == RXBAND_OPTS_BAND_AUTO_BP ? 'B' : 'D',
+             rx_band);
 }
 
 static void dsdr_hiper_fe_tx_band_upd(dsdr_hiper_fe_t* def, unsigned chno, bool band_high)
