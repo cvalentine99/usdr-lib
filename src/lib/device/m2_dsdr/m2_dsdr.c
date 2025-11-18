@@ -1634,10 +1634,10 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         res = res ? res : dev_gpi_get32(d->base.dev, 20, &clk);
 
         USDR_LOG("DSDR", USDR_LOG_ERROR, "Clk %d: %d\n", clk >> 28, clk & 0xfffffff);
-        usleep(0.5 * 1e6);
+        res = res ? res : usleep(0.5 * 1e6);
     }
 
-    usleep(1000);
+    res = res ? res : usleep(1000);
     res = res ? res : dev_gpi_get32(dev, IGPI_PGOOD, &pg);
 
     USDR_LOG("DSDR", USDR_LOG_ERROR, "Configuration: OK [%08x, %08x] res=%d   PG=%08x\n", usr2, hwid, res, pg);
@@ -1652,7 +1652,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
 
     // Initialize AFEPWR
     res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0x1); // Enable VIOSYS, hold RESET
-    usleep(10000);
+    res = res ? res : usleep(10000);
     //res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0x3); // Enable VIOSYS, hold RESET
     res = res ? res : lp875484_init(dev, d->subdev, I2C_AFE_PMIC);
     res = res ? res : lp875484_set_vout(dev, d->subdev, I2C_AFE_PMIC, 930); // Recomended 925mV
@@ -1676,7 +1676,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         return -EIO;
     }
 
-    usleep(100000);
+    res = res ? res : usleep(100000);
 
     res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0x7); // Enable DCDC 1.2V;
     // We don't have PG_1v2 routed in this rev
@@ -1693,14 +1693,14 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         if (pgdat & (1 << 6))
             break;
 
-        usleep(1000);
+        res = res ? res : usleep(1000);
     }
     if (!(pgdat & (1 << 6))) {
         USDR_LOG("DSDR", USDR_LOG_ERROR, "DCDC 1.8V isn't good, giving up!\n");
         return -EIO;
     }
 
-    usleep(100000);
+    res = res ? res : usleep(100000);
 
     res = res ? res : dev_gpo_set(dev, IGPO_PWR_AFE, 0x1f);
     if (res)
@@ -1709,10 +1709,10 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
     // Test AFE chip
     USDR_LOG("DSDR", USDR_LOG_ERROR, "AFE is powered up!\n");
 
-    usleep(100000);
+    res = res ? res : usleep(100000);
 
     res = res ? res : dev_gpo_set(dev, IGPO_AFE_RST, 0x0);
-    usleep(100000);
+    res = res ? res : usleep(100000);
     res = res ? res : dev_gpo_set(dev, IGPO_AFE_RST, 0x1);
 
     res = res ? res : usleep(100000);
@@ -1726,7 +1726,7 @@ int usdr_device_m2_dsdr_initialize(pdevice_t udev, unsigned pcount, const char**
         res = res ? res : usdr_jesd204b_bringup_pre(d);
 
         // sleep(1);
-        usleep(10000);
+        res = res ? res : usleep(10000);
 
         char afeconfig_path[1024];
         char *afecfgpath = getenv("AFECFG_PATH");
