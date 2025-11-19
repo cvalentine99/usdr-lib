@@ -4,7 +4,8 @@
 #ifndef _M2_LM7_1_H
 #define _M2_LM7_1_H
 
-
+#include "../device.h"
+#include "xsdr_ctrl.h"
 
 #define BIT(x) (1u << (x))
 
@@ -79,5 +80,6 @@ enum sigtype {
     XSDR_RX_LNA_CHANGED,
 };
 
+xsdr_dev_t* m2_lm7_1_get_xsdr_dev(pdevice_t udev);
 
 #endif
