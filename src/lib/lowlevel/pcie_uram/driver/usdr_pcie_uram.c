@@ -28,6 +28,7 @@
 #include <linux/ktime.h>
 
 #include "./pcie_uram_driver_if.h"
+#include "./pcie_uram_regs.h"
 #include "./si2c.c"
 #include "./spiext.h"
 #include "./device_cores.h"
@@ -424,7 +425,14 @@ static void deinit_bucket(struct usdr_dev *dev)
     }
 }
 
-// TODO redefine constants
+/**
+ * usdr_pcie_irq_bucket_128 - IRQ handler for bucket-based interrupt processing
+ * @irq: IRQ number
+ * @data: Pointer to usdr_dev structure
+ *
+ * Processes interrupt events from a bucket of size PCIE_URAM_IRQ_BUCKET_SIZE (128).
+ * Each event consists of PCIE_URAM_IRQ_BUCKET_ENTRY_WORDS (4) 32-bit words.
+ */
 static irqreturn_t usdr_pcie_irq_bucket_128(int irq, void *data)
 {
     struct usdr_dev *d = (struct usdr_dev *)data;
@@ -446,12 +454,12 @@ static irqreturn_t usdr_pcie_irq_bucket_128(int irq, void *data)
 irq_found:
     bptr = b->db.kvirt;
     ets = ktime_get();
-    for (j = 0, i = b->rptr; i < b->rptr + 256; i++, j++) {
+    for (j = 0, i = b->rptr; i < b->rptr + PCIE_URAM_IRQ_BUCKET_MAX_SCAN; i++, j++) {
         uint32_t data[4];
         unsigned event_no, flags, l;
-        
+
         for (l = 0; l < 4; l++)
-            data[l] = /*be32_to_cpu*/(bptr[(4 * i + l) & 0x3ff]);
+            data[l] = /*be32_to_cpu*/(bptr[(PCIE_URAM_IRQ_BUCKET_ENTRY_WORDS * i + l) & PCIE_URAM_IRQ_BUCKET_BUFFER_MASK]);
         
         //event_no = data[3] >> 29;
         //flags = (data[3] & (1u<<28)) ? 1 : 0;
@@ -463,7 +471,7 @@ irq_found:
             break;
         }
         if (i % 32 == 31) {
-            do_cnf = (i << 1) & 0x3ff;
+            do_cnf = (i << 1) & PCIE_URAM_IRQ_BUCKET_BUFFER_MASK;
         }
         
         DEBUG_DEV_OUT(&d->pdev->dev, "BUCKET %d IRQ %d: Event %d Flag: %d; RPTR %d; Data: %08x_%08x_%08x_%08x\n",

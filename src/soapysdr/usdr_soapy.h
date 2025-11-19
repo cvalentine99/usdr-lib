@@ -353,5 +353,6 @@ private:
     int _txcorr = 0;
 
     std::string _clk_source = "internal";
+    mutable double _master_clock_rate = 0.0;
 };
 

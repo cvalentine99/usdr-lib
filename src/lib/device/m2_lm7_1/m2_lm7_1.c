@@ -23,6 +23,7 @@
 #include "../ipblks/streams/stream_sfetrx4_dma32.h"
 
 #include "xsdr_ctrl.h"
+#include "m2_lm7_1.h"
 
 //#include "../device/ext_exm2pe/board_exm2pe.h"
 
@@ -999,7 +1000,7 @@ int usdr_device_m2_lm7_1_stream_deinitialize(lldev_t dev, subdev_t subdev, strea
     return d->p_original_ops->stream_deinitialize(dev, subdev, channel);
 }
 
-xsdr_dev_t* get_xsdr_dev(pdevice_t udev)
+xsdr_dev_t* m2_lm7_1_get_xsdr_dev(pdevice_t udev)
 {
     struct dev_m2_lm7_1_gps *d = (struct dev_m2_lm7_1_gps *)udev;
     return &d->xdev;
