@@ -1,5 +1,5 @@
-const __m256  scale  = _mm256_set1_ps(CONV_SCALE);
-const __m256  scale2 = _mm256_set1_ps(SCALE2);
+UNUSED const __m256  scale  = _mm256_set1_ps(CONV_SCALE);
+UNUSED const __m256  scale2 = _mm256_set1_ps(SCALE2);
 
 /*
 *  reg:

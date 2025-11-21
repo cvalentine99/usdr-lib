@@ -1,5 +1,5 @@
-const __m512  scale = _mm512_set1_ps(CONV_SCALE);
-const __m512  scale2 = _mm512_set1_ps(SCALE2);
+UNUSED const __m512  scale = _mm512_set1_ps(CONV_SCALE);
+UNUSED const __m512  scale2 = _mm512_set1_ps(SCALE2);
 
 #define CONVERT_I12_F32_BLOCK(reg, res0, res1) \
 {   \

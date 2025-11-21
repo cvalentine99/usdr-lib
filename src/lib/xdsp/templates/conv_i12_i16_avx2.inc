@@ -1,7 +1,7 @@
 const __m256i load_mask = _mm256_set_epi64x(0, -1, -1, -1);
 
 const __m256i mask0 = _mm256_set1_epi64x(0xfff00000fff00000);
-const __m256i mask1 = _mm256_set1_epi64x(0x0000fff00000fff0);
+UNUSED const __m256i mask1 = _mm256_set1_epi64x(0x0000fff00000fff0);
 
 const __m256i permmask = _mm256_set_epi32(5, 4, 3, 7, 6, 2, 1, 0);
 const __m256i shfl = _mm256_set_epi8(
