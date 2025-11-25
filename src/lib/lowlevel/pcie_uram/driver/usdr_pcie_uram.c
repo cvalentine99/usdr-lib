@@ -65,6 +65,24 @@ static int pci_irq_vector(struct pci_dev *dev, unsigned int nr)
 }
 #endif
 
+
+// vm_flags_set introduced in 6.3.0, however enterprise-like kernels heavily backport new API to
+// old base kernel version, notably RHEL, resulting in newer API in 5.x.x. So version like checks
+// will fail here
+#ifndef HAVE_VM_FLAGS_SET
+#if defined(vm_flags_set)
+#define HAVE_VM_FLAGS_SET 1
+#endif
+#endif
+
+#ifndef HAVE_CLASS_CREATE_ONE_ARG
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+#define HAVE_CLASS_CREATE_ONE_ARG 1
+#endif
+#endif
+
+
+
 // Change anytime when extra parameter or meaning is changed in pcie_uram_driver_if.h
 #define USDR_DRIVER_ABI_VERSION 3
 
@@ -1474,7 +1492,7 @@ static int usdrfd_mmap_io(struct usdr_dev *usdrdev, struct vm_area_struct *vma)
         return -EINVAL;
 
     vma->vm_page_prot = pgprot_device(vma->vm_page_prot);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+#ifdef HAVE_VM_FLAGS_SET
     vma->vm_flags |= VM_IO;
 #else
     vm_flags_set(vma, VM_IO);
@@ -1799,7 +1817,7 @@ static int __init usdr_init(void)
 		printk(KERN_NOTICE PFX "Unable to allocate chrdev region: %d\n", err);
 		goto failed_chrdev;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+#ifndef HAVE_CLASS_CREATE_ONE_ARG
         usdr_class = class_create(THIS_MODULE, CLASS_NAME);
 #else
         usdr_class = class_create(CLASS_NAME);
