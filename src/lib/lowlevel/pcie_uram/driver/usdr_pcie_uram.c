@@ -70,17 +70,17 @@ static int pci_irq_vector(struct pci_dev *dev, unsigned int nr)
 // old base kernel version, notably RHEL, resulting in newer API in 5.x.x. So version like checks
 // will fail here
 #ifndef HAVE_VM_FLAGS_SET
-#if defined(vm_flags_set)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 #define HAVE_VM_FLAGS_SET 1
 #endif
 #endif
+
 
 #ifndef HAVE_CLASS_CREATE_ONE_ARG
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
 #define HAVE_CLASS_CREATE_ONE_ARG 1
 #endif
 #endif
-
 
 
 // Change anytime when extra parameter or meaning is changed in pcie_uram_driver_if.h
@@ -1492,7 +1492,7 @@ static int usdrfd_mmap_io(struct usdr_dev *usdrdev, struct vm_area_struct *vma)
         return -EINVAL;
 
     vma->vm_page_prot = pgprot_device(vma->vm_page_prot);
-#ifdef HAVE_VM_FLAGS_SET
+#ifndef HAVE_VM_FLAGS_SET
     vma->vm_flags |= VM_IO;
 #else
     vm_flags_set(vma, VM_IO);
