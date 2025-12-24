@@ -392,6 +392,7 @@ int buffers_init(struct buffers* rb, unsigned max, unsigned zerosemval, bool has
     rb->auto_restart = false;
     rb->stop = false;
     rb->transfers_count = 0;
+    rb->pending_transfers = 0;
 
     rb->on_buffer_param = NULL;
     rb->on_buffer = NULL;
@@ -411,8 +412,23 @@ void buffers_deinit(struct buffers* rb)
         }
     }
 
-    // TODO Add synchronization to get all outstanging endpoints
-    usleep(10000);
+    // Wait for all pending transfers to complete their callbacks
+    // The IO thread will process the cancelled transfer callbacks
+    unsigned wait_count = 0;
+    while (__atomic_load_n(&rb->pending_transfers, __ATOMIC_SEQ_CST) > 0) {
+        usleep(1000); // 1ms
+        wait_count++;
+        if (wait_count > 1000) { // 1 second timeout
+            USDR_LOG("USBX", USDR_LOG_ERROR,
+                     "Timeout waiting for %u pending transfers to complete\n",
+                     rb->pending_transfers);
+            break;
+        }
+    }
+
+    if (wait_count > 0) {
+        USDR_LOG("USBX", USDR_LOG_DEBUG, "Waited %u ms for transfers to complete\n", wait_count);
+    }
 
     sem_destroy(&rb->buf_ready);
     free(rb->rqueuebuf_ptr);
@@ -547,9 +563,10 @@ int buffers_usb_transfer_post(struct buffers *prxb, unsigned buffer_idx, unsigne
                  (prxb->transfers[transfer_idx]->endpoint & LIBUSB_ENDPOINT_IN) ? "IN" : "OUT",
                  transfer_idx, buffer_idx, res);
     } else {
-        USDR_LOG("USBX", USDR_LOG_DEBUG, "posted %s_STRM[%d]/%d (prod=%d cons=%d)\n",
+        __atomic_fetch_add(&prxb->pending_transfers, 1, __ATOMIC_SEQ_CST);
+        USDR_LOG("USBX", USDR_LOG_DEBUG, "posted %s_STRM[%d]/%d (prod=%d cons=%d pending=%d)\n",
                  (prxb->transfers[transfer_idx]->endpoint & LIBUSB_ENDPOINT_IN) ? "IN" : "OUT",
-                 transfer_idx, buffer_idx, prxb->bufno_prod, prxb->bufno_cons);
+                 transfer_idx, buffer_idx, prxb->bufno_prod, prxb->bufno_cons, prxb->pending_transfers);
     }
     return res;
 }
@@ -568,11 +585,14 @@ void LIBUSB_CALL libusb_transfer_buffers_cb(struct libusb_transfer *transfer)
     }
     assert(idx < rxb->transfers_count);
 
-    USDR_LOG("USBX", USDR_LOG_DEBUG, "%s_STRM[%d] transfer %d => %d / %d\n", tr_type,
-             idx, transfer->status, transfer->actual_length, transfer->length);
+    // Always decrement pending count - callback is called exactly once per submit
+    __atomic_fetch_sub(&rxb->pending_transfers, 1, __ATOMIC_SEQ_CST);
+
+    USDR_LOG("USBX", USDR_LOG_DEBUG, "%s_STRM[%d] transfer %d => %d / %d (pending=%d)\n", tr_type,
+             idx, transfer->status, transfer->actual_length, transfer->length, rxb->pending_transfers);
 
     if (rxb->stop) {
-        // TODO: Syncronize EPs
+        // Stopping - don't process or resubmit
         return;
     }
 

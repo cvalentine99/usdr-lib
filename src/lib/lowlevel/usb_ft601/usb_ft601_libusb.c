@@ -375,8 +375,21 @@ int usbft601_uram_destroy(lldev_t dev)
         usbft601_uram_stream_deinitialize(dev, 0, sno);
     }
 
-    // TODO: Wait for outstanding IO
+    // Cancel any pending control transfers
+    for (unsigned i = 0; i < MAX_IN_CTRL_REQS; i++) {
+        if (d->transfer_in_ctrl[i]) {
+            libusb_cancel_transfer(d->transfer_in_ctrl[i]);
+        }
+    }
+    for (unsigned i = 0; i < MAX_OUT_CTRL_REQS; i++) {
+        if (d->transfer_out_ctrl[i]) {
+            libusb_cancel_transfer(d->transfer_out_ctrl[i]);
+        }
+    }
 
+    // Give libusb time to process cancellations
+    struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 }; // 100ms
+    libusb_handle_events_timeout(d->gdev.ctx, &tv);
 
     // Destroy undelying dev
     if (dev->pdev) {
@@ -386,8 +399,8 @@ int usbft601_uram_destroy(lldev_t dev)
     libusb_generic_stop_thread(&d->gdev);
     libusb_close(d->gdev.dh);
 
-    /////
-
+    sem_destroy(&d->tr_ctrl_out);
+    sem_destroy(&d->tr_ctrl_rb);
 
     free(d);
     return 0;

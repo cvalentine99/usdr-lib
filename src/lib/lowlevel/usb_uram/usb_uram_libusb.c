@@ -242,7 +242,8 @@ static int usb_post_regout(usb_dev_t* dev, uint32_t *regoutbuffer, unsigned coun
         return res;
     }
 
-    // TODO obtain IDX
+    // Note: idx is hardcoded to 0 since MAX_REGOUT_REQS = 1
+    // If increased, need to implement ring buffer or atomic index allocation
     unsigned idx = 0;
     struct libusb_transfer *transfer = dev->transfer_regout[idx];
     dev->buffer_regout_flags[idx] = tot_rbs;
@@ -268,7 +269,8 @@ static int usb_post_rb(usb_dev_t* dev, uint32_t* buffer, unsigned max_buffer_dw,
         return res;
     }
 
-    // TODO obtain IDX
+    // Note: idx is hardcoded to 0 since MAX_RB_REQS = 1
+    // If increased, need to implement ring buffer or atomic index allocation
     unsigned idx = 0;
     struct libusb_transfer *transfer = dev->transfer_rb[idx];
     buffer[0] = __atomic_fetch_add(&dev->rb_valid_idx, 1, __ATOMIC_SEQ_CST);
@@ -363,10 +365,20 @@ void LIBUSB_CALL libusb_transfer_ntfy(struct libusb_transfer *transfer)
             dev->rbvalue[event] = buff[++i];
             sem_post(&dev->interrupts[event]);
         } else if ((i + 1 + blen) < packet_len / 4) {
+            // Packet notification with additional data payload
+            // Store the first data DWORD for API compatibility, discard rest
+            dev->rbvalue[event] = buff[i + 1];
+            if (blen > 1) {
+                USDR_LOG("USBX", USDR_LOG_WARNING,
+                         "Packet notification seq %04x event %d: storing first DWORD %08x, discarding %u extra DWORDs\n",
+                         seqnum, event, buff[i + 1], blen - 1);
+            } else {
+                USDR_LOG("USBX", USDR_LOG_NOTE,
+                         "Got packet notification seq %04x event %d => %08x\n",
+                         seqnum, event, buff[i + 1]);
+            }
             i += blen + 1;
-
-            //TODO packet notification
-            USDR_LOG("USBX", USDR_LOG_ERROR, "TODO!!!!!!!!!!!!!!!\n");
+            sem_post(&dev->interrupts[event]);
         } else {
             //packet overflow!
             USDR_LOG("USBX", USDR_LOG_ERROR, "Notification seqnum %04x, %08x hdr -- truncated!\n",
@@ -817,8 +829,30 @@ int usb_uram_destroy(lldev_t dev)
         usb_uram_stream_deinitialize(dev, 0, sno);
     }
 
-    // TODO: Wait for outstanding IO
+    // Signal stop and cancel outstanding transfers
+    d->stop = true;
 
+    // Cancel any pending transfers
+    for (unsigned i = 0; i < MAX_REGOUT_REQS; i++) {
+        if (d->transfer_regout[i]) {
+            libusb_cancel_transfer(d->transfer_regout[i]);
+        }
+    }
+    for (unsigned i = 0; i < MAX_RB_REQS; i++) {
+        if (d->transfer_rb[i]) {
+            libusb_cancel_transfer(d->transfer_rb[i]);
+        }
+    }
+    for (unsigned i = 0; i < MAX_NTFY_REQS; i++) {
+        if (d->transfer_ntfy[i]) {
+            libusb_cancel_transfer(d->transfer_ntfy[i]);
+        }
+    }
+
+    // Give libusb time to process cancellations
+    // The IO thread will handle the cancelled transfer callbacks
+    struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 }; // 100ms
+    libusb_handle_events_timeout(d->gdev.ctx, &tv);
 
     // Destroy undelying dev
     if (dev->pdev) {

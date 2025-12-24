@@ -185,6 +185,7 @@ struct buffers
     //
     struct libusb_transfer *transfers[BUFFERS_MAX_TRANS];
     unsigned transfers_count;
+    unsigned pending_transfers; // count of in-flight transfers
 
     void* on_buffer_param;
     void (*on_buffer)(void* param, struct buffer_discriptor * bd);

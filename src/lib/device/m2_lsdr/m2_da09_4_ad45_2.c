@@ -832,21 +832,39 @@ int dev_m2_d09_4_ad45_2_rate_set(pdevice_t ud, pusdr_vfs_obj_t obj, uint64_t val
             return res;
     }
 
-    // TODO wait stble frequency!!!
-    usleep(100000);
-
+    // Wait for PLL to lock with polling instead of fixed delay
     if (d->lmk04832_present) {
         uint32_t stat;
         bool locked = false;
-        res = dev_gpi_get32(dev, IGPI_BANK_LMK_STAT, &stat);
-        if (res)
-            return res;
+        unsigned retry_count = 0;
+        const unsigned max_retries = 100; // 100 x 2ms = 200ms max wait
 
-        res = lmk04832_check_lock(dev, 0, 2, &locked);
-        if (res)
-            return res;
+        do {
+            usleep(2000); // 2ms between checks
+            res = dev_gpi_get32(dev, IGPI_BANK_LMK_STAT, &stat);
+            if (res)
+                return res;
 
-        USDR_LOG("0944", USDR_LOG_ERROR, "LMK_STAT: %08x, locked=%d\n", stat, locked);
+            res = lmk04832_check_lock(dev, 0, 2, &locked);
+            if (res)
+                return res;
+
+            retry_count++;
+        } while (!locked && retry_count < max_retries);
+
+        if (!locked) {
+            USDR_LOG("0944", USDR_LOG_ERROR,
+                     "LMK04832 PLL failed to lock after %u ms, LMK_STAT: %08x\n",
+                     retry_count * 2, stat);
+            return -ETIMEDOUT;
+        }
+
+        USDR_LOG("0944", USDR_LOG_INFO,
+                 "LMK04832 PLL locked after %u ms, LMK_STAT: %08x\n",
+                 retry_count * 2, stat);
+    } else {
+        // No LMK present, use fixed delay for other clock sources
+        usleep(100000);
     }
 
     // Reset Bitslip logic after changing frequency

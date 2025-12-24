@@ -67,8 +67,28 @@ static
                 *data = buffer[++i];
                 res = 0;
             }
+        } else if ((i + 1 + blen) < packet_cnt) {
+            // Packet notification with additional data payload
+            // Return the first data DWORD for API compatibility
+            if (num == event) {
+                *data = buffer[i + 1];
+                res = 0;
+                if (blen > 1) {
+                    USDR_LOG("USBX", USDR_LOG_WARNING,
+                             "Packet notification seq %04x event %d: returning first DWORD %08x, discarding %u extra DWORDs\n",
+                             seqnum, event, buffer[i + 1], blen - 1);
+                } else {
+                    USDR_LOG("USBX", USDR_LOG_INFO,
+                             "Got packet notification seq %04x event %d => %08x\n",
+                             seqnum, event, buffer[i + 1]);
+                }
+            }
+            i += blen + 1;
         } else {
-            USDR_LOG("USBX", USDR_LOG_ERROR, "TODO!!!!!!!!!!!!!!!\n");
+            // Truncated packet
+            USDR_LOG("USBX", USDR_LOG_ERROR, "Notification seqnum %04x, %08x hdr -- truncated!\n",
+                     seqnum, header);
+            break;
         }
     }
 
