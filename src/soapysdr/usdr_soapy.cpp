@@ -680,17 +680,32 @@ SoapySDR::RangeList SoapyUSDR::getBandwidthRange(const int /*direction*/, const 
 void SoapyUSDR::setMasterClockRate(const double rate)
 {
     std::unique_lock<std::recursive_mutex> lock(_dev->accessMutex);
-    // TODO: get reference clock in case of autodetection
 
     SoapySDR::logf(callLogLvl(), "SoapyUSDR::setMasterClockRate(%.3f)", rate/1e6);
+
+    // Set the reference clock frequency if rate > 0 (0 means autodetect)
+    if (rate > 0) {
+        int res = usdr_dme_set_uint(_dev->dev(), "/dm/sdr/refclk/frequency", (uint64_t)rate);
+        if (res) {
+            throw std::runtime_error("SoapyUSDR::setMasterClockRate() failed to set reference clock");
+        }
+    }
 }
 
 double SoapyUSDR::getMasterClockRate(void) const
 {
-    double rate = 0;
+    uint64_t rate = 0;
 
-    SoapySDR::logf(callLogLvl(), "SoapyUSDR::getMasterClockRate() => %.3f", rate/1e6);
-    return rate;
+    // Get the actual reference clock frequency from device
+    int res = usdr_dme_get_uint(_dev->dev(), "/dm/sdr/refclk/frequency", &rate);
+    if (res) {
+        // Return 0 if we can't read the clock (autodetect mode)
+        SoapySDR::logf(callLogLvl(), "SoapyUSDR::getMasterClockRate() => 0 (unable to read)");
+        return 0;
+    }
+
+    SoapySDR::logf(callLogLvl(), "SoapyUSDR::getMasterClockRate() => %.3f", (double)rate/1e6);
+    return (double)rate;
 }
 
 SoapySDR::RangeList SoapyUSDR::getMasterClockRates(void) const

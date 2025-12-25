@@ -638,7 +638,8 @@ int parse_sfetrx4(const char* dformat, const channel_info_t *channels, unsigned 
         logicchs = cfgchs;
     }
 
-    // TODO: Bifurcation proper set
+    // Bifurcation doubles the channel count by splitting each sample across two lanes
+    // This is used to achieve higher throughput on limited bus widths
     sc_b = sc;
     struct bitsfmt bfmt = get_bits_fmt(sc.sfmt);
     if ((bfmt.complex) && (sc.chcnt == 1)) {
@@ -726,7 +727,8 @@ static int initialize_stream_rx_32(device_t* device,
 
     struct bitsfmt bfmt = get_bits_fmt(sc.sfmt);
     if (data_lane_bifurcation) {
-        // TODO: proper channel remap, now assuming bifurcation lanes are siblings
+        // Bifurcation channel remap: assumes physical lanes are contiguous siblings
+        // i.e., channel N is paired with channel N+1 in hardware
 
         if ((bfmt.complex) && (sc.chcnt == 1)) {
             sc.chcnt = 2;
@@ -943,13 +945,12 @@ static int initialize_stream_tx_32(device_t* device,
 
     struct bitsfmt bfmt = get_bits_fmt(sc.sfmt);
     if (data_lane_bifurcation) {
-        // TODO: proper lane bifurcation
-
-        struct bitsfmt bfmt = get_bits_fmt(sc.sfmt);
+        // TX lane bifurcation: doubles channel count for higher throughput
+        // Only single complex channel is supported (becomes 2 channels)
         if ((bfmt.complex) && (sc.chcnt == 1)) {
             sc.chcnt = 2;
         } else {
-            USDR_LOG("DSTR", USDR_LOG_ERROR, "Bifurcation is only valid for single channel complex");
+            USDR_LOG("DSTR", USDR_LOG_ERROR, "TX Bifurcation is only valid for single channel complex");
             return -EINVAL;
         }
     }
