@@ -50,7 +50,7 @@ void usdrlog_setlevel(const char* subsystem,
  */
 unsigned usdrlog_getlevel(const char* subsystem);
 
-// TODO
+// Custom output function (not yet implemented)
 // void usdrlog_setoutfunc();
 
 // Helper macros

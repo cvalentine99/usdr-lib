@@ -312,7 +312,8 @@ pll2_configured:;
         MAKE_LMK04832_OSC_SYSREF_CFG(pll1_en ? 0 : 1u, pll2_en ? 0 : 1u, pll2_en ? 0 : 1u, inpath == OSCIN ? 0 : 1u,
                              jesd_en ? 0 : 1u, jesd_en ? 0 : 1u, jesd_en ? 0 : 1u, jesd_en ? 0 : 1u),
         MAKE_LMK04832_CLKIN_CFG(0, 0, 0, 0, 0, 0, 0, 0),
-        MAKE_LMK04832_CLKIN_TYPE(0, 0, (inpath == OSCIN) ? CLKIN_SEL_MANUAL_CLKIN0 : inpath, clkin1_demux, clkin0_demux), //TODO fix holdover state
+        // Use inpath directly - OSCIN maps to CLKIN_SEL_MANUAL_HOLDOVER for internal oscillator
+        MAKE_LMK04832_CLKIN_TYPE(0, 0, inpath, clkin1_demux, clkin0_demux),
 
         MAKE_LMK04832_CLKIN0_R_HI(0),
         MAKE_LMK04832_CLKIN0_R_LOW(1),

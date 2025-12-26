@@ -897,7 +897,7 @@ void SoapyUSDR::writeSetting(const std::string &key, const std::string &value)
 
 SoapySDR::ArgInfoList SoapyUSDR::getSettingInfo(const int direction, const size_t channel) const
 {
-    // TODO
+    // Per-channel settings not yet implemented - return empty list
     (void)direction;
     (void)channel;
 
@@ -908,7 +908,7 @@ SoapySDR::ArgInfoList SoapyUSDR::getSettingInfo(const int direction, const size_
 void SoapyUSDR::writeSetting(const int direction, const size_t channel,
                              const std::string &key, const std::string &value)
 {
-    // TODO
+    // Per-channel settings not yet implemented
     (void)direction;
     (void)channel;
     (void)key;

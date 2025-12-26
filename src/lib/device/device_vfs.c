@@ -235,8 +235,8 @@ int vfs_add_obj_i64(vfs_object_t* root, const char* fullpath, void* obj, uint64_
     no->data.i64 = defval;
 
     no->ops.si64 = fs;
-    no->ops.sstr = NULL;  // TODO
-    no->ops.sai64 = NULL; // TODO
+    no->ops.sstr = NULL;  // String set not supported for i64 type
+    no->ops.sai64 = NULL; // Array set not supported for i64 type
 
     no->ops.gi64 = fg;
     no->ops.gstr = &_vfs_i64_get_str_func;

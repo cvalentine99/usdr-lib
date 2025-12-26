@@ -207,7 +207,8 @@ int limesdr_init(limesdr_dev_t *d)
 
 int limesdr_dtor(limesdr_dev_t *d)
 {
-    // TODO
+    // Destructor - currently no cleanup needed
+    (void)d;
     return 0;
 }
 

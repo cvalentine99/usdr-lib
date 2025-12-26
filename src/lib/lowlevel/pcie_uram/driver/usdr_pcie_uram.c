@@ -1087,9 +1087,9 @@ static int usdr_stream_wait_or_alloc(struct usdr_dev *usdrdev, unsigned long sno
         usdrdev->streams[sno]->abuffer_no += cnt;
     }
 
-    //dma_sync_single_for_cpu()
-    // TODO FLUSH CACHE on non-coherent devices
-    // TODO: this works only on non-muxed interrupts!!!
+    // Note: dma_sync_single_for_cpu() is called above when DEV_NO_DMA_SYNC is not set
+    // This handles cache invalidation for non-coherent devices
+    // Note: Interrupt handling assumes non-muxed (dedicated) IRQ lines per stream
     //BUG_ON(cnt > 0xff);
     //bptr = usdrdev->streams[sno]->cores.rxbrst.bufptr;
     //res = cnt | (bptr << 12);
