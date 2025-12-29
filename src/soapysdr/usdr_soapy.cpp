@@ -1160,15 +1160,23 @@ SoapySDR::Stream *SoapyUSDR::setupStream(
                    ustr->stream, numElems, ustr->nfo.pktsyms, ustr->nfo.channels, res);
 
     if (_actual_rx_rate == 0) {
+        SoapySDR::logf(callLogLvl(), "SoapyUSDR::setupStream() setting default sample rate 1.92 MHz");
         setSampleRate(SOAPY_SDR_RX, 0, 1.92e6);
     }
 
+    SoapySDR::logf(callLogLvl(), "SoapyUSDR::setupStream() calling usdr_dms_sync");
     res = usdr_dms_sync(_dev->dev(), "off", 1, &ustr->strm);
     if (res) {
-        throw std::runtime_error("SoapyUSDR::setupStream failed!");
+        SoapySDR::logf(SOAPY_SDR_ERROR, "SoapyUSDR::setupStream() usdr_dms_sync failed with error %d", res);
+        throw std::runtime_error("SoapyUSDR::setupStream() usdr_dms_sync failed!");
     }
 
+    SoapySDR::logf(callLogLvl(), "SoapyUSDR::setupStream() calling usdr_dms_op START");
     res = usdr_dms_op(ustr->strm, USDR_DMS_START, 0);
+    if (res) {
+        SoapySDR::logf(SOAPY_SDR_ERROR, "SoapyUSDR::setupStream() usdr_dms_op START failed with error %d", res);
+        throw std::runtime_error("SoapyUSDR::setupStream() usdr_dms_op START failed!");
+    }
     ustr->setup = true;
 
     if (direction == SOAPY_SDR_RX) {
@@ -1177,6 +1185,8 @@ SoapySDR::Stream *SoapyUSDR::setupStream(
         _tx_log_chans = num_channels;
     }
 
+    SoapySDR::logf(callLogLvl(), "SoapyUSDR::setupStream() completed successfully, returning stream %p",
+                   (void*)&_streams[direction]);
     return (SoapySDR::Stream *)&_streams[direction];
 }
 
