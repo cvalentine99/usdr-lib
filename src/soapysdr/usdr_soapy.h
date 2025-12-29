@@ -353,5 +353,8 @@ private:
     int _txcorr = 0;
 
     std::string _clk_source = "internal";
+
+    // Antenna selection per direction
+    std::string _antenna[2] = { "LNAW", "TXW" };  // [RX, TX] defaults
 };
 

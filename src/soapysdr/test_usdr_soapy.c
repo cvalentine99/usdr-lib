@@ -143,7 +143,7 @@ int main(int argc, char** argv)
 #if (SOAPY_SDR_API_VERSION < 0x00080000)
     if (SoapySDRDevice_setupStream(sdr, &rxStream, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, &streamArgs) != 0) {
 #else
-    if ((rxStream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, &streamArgs)) != NULL) {
+    if ((rxStream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, SOAPY_SDR_CF32, act_channels, channels, &streamArgs)) == NULL) {
 #endif
         printf("setupStream fail: %s\n", SoapySDRDevice_lastError());
         exit(1);

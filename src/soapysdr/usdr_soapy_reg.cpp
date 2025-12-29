@@ -40,6 +40,10 @@ static SoapySDR::KwargsList findIConnection(const SoapySDR::Kwargs &matchArgs)
         usdrArgs["label"] = std::string("USDR: ") + uniqname;
         results.push_back(usdrArgs);
 
+        // Avoid null pointer arithmetic if no newline found
+        if (end == nullptr) {
+            break;
+        }
         dptr = end + 1;
     }
 
