@@ -1323,33 +1323,28 @@ int SoapyUSDR::readStream(
 
         return SOAPY_SDR_TIMEOUT;
     } else {
-        if (numElems != ustr->nfo.pktsyms) {
-            size_t blksz;
-            blksz = ustr->nfo.pktsyms * 16;
-            while (blksz < numElems * 2)
-                blksz <<= 1;
+        // If app requests more samples than hardware packet size, we have two options:
+        // 1. Return partial data (what hardware provides) - lower latency, standard SoapySDR behavior
+        // 2. Use jitter buffer to accumulate - higher latency but exact packet sizes
+        //
+        // We use option 1 by default for better performance. Apps should handle
+        // receiving fewer samples than requested - this is standard SoapySDR behavior.
+        // The actual number returned is in the return value.
+        //
+        // If the app MUST have exact sizes, they should use getStreamMTU() to query
+        // the hardware packet size and request that exact amount.
 
-            size_t blksz_bytes = blksz * ustr->nfo.pktbszie / ustr->nfo.pktsyms;
-
-            SoapySDR::logf(SOAPY_SDR_ERROR, "SoapyUSDR::readStream(%s) requested %d but block is configured for %d, injecting jitter buffer of %d bytes. Performance will be degraded",
-                           ustr->stream, numElems, ustr->nfo.pktsyms, blksz_bytes);
-
-            ustr->rxcbuf.resize(_rx_log_chans);
-            for (unsigned i = 0; i < _rx_log_chans; i++) {
-                ustr->rxcbuf[i] = ring_circbuf_create(blksz_bytes);
-                if (ustr->rxcbuf[i] == nullptr) {
-                    // Cleanup already allocated buffers
-                    for (unsigned j = 0; j < i; j++) {
-                        ring_circbuf_destroy(ustr->rxcbuf[j]);
-                    }
-                    ustr->rxcbuf.resize(0);
-                    SoapySDR::logf(SOAPY_SDR_ERROR, "SoapyUSDR::readStream() failed to allocate jitter buffer");
-                    return SOAPY_SDR_STREAM_ERROR;
-                }
+        if (numElems > ustr->nfo.pktsyms) {
+            // Log once per stream about the mismatch
+            static bool mtu_warning_logged = false;
+            if (!mtu_warning_logged) {
+                SoapySDR::logf(SOAPY_SDR_WARNING, "SoapyUSDR::readStream(%s) app requested %d samples but hardware MTU is %d. "
+                               "Returning partial data. Use getStreamMTU() to query optimal size.",
+                               ustr->stream, (int)numElems, ustr->nfo.pktsyms);
+                mtu_warning_logged = true;
             }
-
-            // Reenter
-            return readStream(stream, buffs, numElems, flags, timeNs, timeoutUs);
+            // Cap to hardware packet size - we'll return this many samples
+            numElems = ustr->nfo.pktsyms;
         }
 
         res = usdr_dms_recv(ustr->strm, (void**)buffs, timeoutUs / 1000, &nfo);
