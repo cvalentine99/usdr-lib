@@ -1,0 +1,213 @@
+---
+version: 2
+title: xMASS - four xSDRs
+summary: One SoapySDR receiver and spectrum per xSDR on the xMASS card.
+graph:
+  - name: xsdr0
+    module: soapy
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      deviceString: 'bus=pci, device=usdr0, driver=usdr, media=usdr, module=usdr_soapy, name=usdr, serial=012345678, type=usdr'
+      frequency: 9.33e+07
+      frequencyStep: 100000
+      sampleRate: 2000000
+      automaticGain: false
+      manualGain: 30
+      numberOfBatches: 8
+      numberOfTimeSamples: 2048
+      bufferMultiplier: 64
+    meta:
+      node:
+        x: 16
+        y: 60
+        width: 300
+        height: 0
+  - name: spectrum0
+    module: spectrum_analyzer
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      lineplotAveraging: 16
+      waterfallAveraging: 4
+      maxHold: false
+      fill: true
+      rangeMin: -110
+      rangeMax: -20
+      waterfallHeight: 512
+      splitRatio: 0.45
+      xLabel: Frequency (MHz)
+      amplitudeLabel: Amplitude (dBFS)
+      waterfallLabel: Time
+    input:
+      buffer: '${graph.xsdr0.output.signal}'
+    meta:
+      node:
+        x: 346
+        y: 60
+        width: 600
+        height: 0
+      surface_default:
+        attachedHeight: 400
+        detachedWidth: 600
+        detachedHeight: 400
+        detached: false
+        configCollapsed: true
+  - name: xsdr1
+    module: soapy
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      deviceString: 'bus=pci, device=usdr1, driver=usdr, media=usdr, module=usdr_soapy, name=usdr, serial=012345678, type=usdr'
+      frequency: 9.33e+07
+      frequencyStep: 100000
+      sampleRate: 2000000
+      automaticGain: false
+      manualGain: 30
+      numberOfBatches: 8
+      numberOfTimeSamples: 2048
+      bufferMultiplier: 64
+    meta:
+      node:
+        x: 971
+        y: 60
+        width: 300
+        height: 0
+  - name: spectrum1
+    module: spectrum_analyzer
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      lineplotAveraging: 16
+      waterfallAveraging: 4
+      maxHold: false
+      fill: true
+      rangeMin: -110
+      rangeMax: -20
+      waterfallHeight: 512
+      splitRatio: 0.45
+      xLabel: Frequency (MHz)
+      amplitudeLabel: Amplitude (dBFS)
+      waterfallLabel: Time
+    input:
+      buffer: '${graph.xsdr1.output.signal}'
+    meta:
+      node:
+        x: 1301
+        y: 60
+        width: 600
+        height: 0
+      surface_default:
+        attachedHeight: 400
+        detachedWidth: 600
+        detachedHeight: 400
+        detached: false
+        configCollapsed: true
+  - name: xsdr2
+    module: soapy
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      deviceString: 'bus=pci, device=usdr2, driver=usdr, media=usdr, module=usdr_soapy, name=usdr, serial=012345678, type=usdr'
+      frequency: 9.33e+07
+      frequencyStep: 100000
+      sampleRate: 2000000
+      automaticGain: false
+      manualGain: 30
+      numberOfBatches: 8
+      numberOfTimeSamples: 2048
+      bufferMultiplier: 64
+    meta:
+      node:
+        x: 16
+        y: 560
+        width: 300
+        height: 0
+  - name: spectrum2
+    module: spectrum_analyzer
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      lineplotAveraging: 16
+      waterfallAveraging: 4
+      maxHold: false
+      fill: true
+      rangeMin: -110
+      rangeMax: -20
+      waterfallHeight: 512
+      splitRatio: 0.45
+      xLabel: Frequency (MHz)
+      amplitudeLabel: Amplitude (dBFS)
+      waterfallLabel: Time
+    input:
+      buffer: '${graph.xsdr2.output.signal}'
+    meta:
+      node:
+        x: 346
+        y: 560
+        width: 600
+        height: 0
+      surface_default:
+        attachedHeight: 400
+        detachedWidth: 600
+        detachedHeight: 400
+        detached: false
+        configCollapsed: true
+  - name: xsdr3
+    module: soapy
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      deviceString: 'bus=pci, device=usdr3, driver=usdr, media=usdr, module=usdr_soapy, name=usdr, serial=012345678, type=usdr'
+      frequency: 9.33e+07
+      frequencyStep: 100000
+      sampleRate: 2000000
+      automaticGain: false
+      manualGain: 30
+      numberOfBatches: 8
+      numberOfTimeSamples: 2048
+      bufferMultiplier: 64
+    meta:
+      node:
+        x: 971
+        y: 560
+        width: 300
+        height: 0
+  - name: spectrum3
+    module: spectrum_analyzer
+    device: cpu
+    runtime: native
+    provider: generic
+    config:
+      lineplotAveraging: 16
+      waterfallAveraging: 4
+      maxHold: false
+      fill: true
+      rangeMin: -110
+      rangeMax: -20
+      waterfallHeight: 512
+      splitRatio: 0.45
+      xLabel: Frequency (MHz)
+      amplitudeLabel: Amplitude (dBFS)
+      waterfallLabel: Time
+    input:
+      buffer: '${graph.xsdr3.output.signal}'
+    meta:
+      node:
+        x: 1301
+        y: 560
+        width: 600
+        height: 0
+      surface_default:
+        attachedHeight: 400
+        detachedWidth: 600
+        detachedHeight: 400
+        detached: false
+        configCollapsed: true
