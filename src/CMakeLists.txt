@@ -6,6 +6,18 @@ project(usdr-world C)
 
 include(GNUInstallDirs)
 
+# Installed tools and the SoapySDR module must load the libusdr installed with them. When the
+# library directory isn't one the dynamic linker searches (e.g. the default /usr/local prefix),
+# they otherwise fail to start or pick up another libusdr, such as a distribution package.
+# Install trees under system library directories, like /usr packages, get no RPATH.
+if(NOT DEFINED CMAKE_INSTALL_RPATH)
+    list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" USDR_LIBDIR_PLATFORM_IDX)
+    list(FIND CMAKE_C_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" USDR_LIBDIR_C_IDX)
+    if(USDR_LIBDIR_PLATFORM_IDX EQUAL -1 AND USDR_LIBDIR_C_IDX EQUAL -1)
+        set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
+    endif()
+endif()
+
 if(POLICY CMP0148)
     cmake_policy(SET CMP0148 OLD) #PythonInterp
 endif()
