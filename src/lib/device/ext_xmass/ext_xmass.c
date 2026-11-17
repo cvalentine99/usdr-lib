@@ -3,6 +3,7 @@
 
 #include "ext_xmass.h"
 #include "../ipblks/gpio.h"
+#include "../ipblks/uart.h"
 
 #include <stdlib.h>
 #include <usdr_logging.h>
@@ -118,6 +119,7 @@ static int _board_xmass_fill_lmk05318(board_xmass_t* ob, lmk05318_out_config_t l
 int board_xmass_init(lldev_t dev,
                      unsigned subdev,
                      unsigned gpio_base,
+                     unsigned uart_base,
                      const char* compat,
                      const char* params,
                      unsigned int i2c_loc,
@@ -132,8 +134,9 @@ int board_xmass_init(lldev_t dev,
 
     // pps_sdra (default): 1PPS_IN comes from SDR_A's SYSREF generator.
     // pps_gps: 1PPS_IN comes from LMK OUT7, disciplined by the GPS PPS on PRIREF.
-    enum { P_PPS };
-    static const char* ppars[] = { "pps_", NULL };
+    // uart_on: log a few seconds of GPS NMEA (GPS_TX on GPIO4) during init.
+    enum { P_PPS, P_UART };
+    static const char* ppars[] = { "pps_", "uart_", NULL };
     struct param_data pd[SIZEOF_ARRAY(ppars)];
     memset(pd, 0, sizeof(pd));
     ob->pps_from_sdra = true;
@@ -153,6 +156,7 @@ int board_xmass_init(lldev_t dev,
             }
         }
     }
+    const bool nmea_dump = params != NULL && is_param_on(&pd[P_UART]) == 1;
     const unsigned pps_sel = ob->pps_from_sdra ? (1 << 6) : 0;
     USDR_LOG("XMSS", USDR_LOG_INFO, "1PPS source: %s\n", ob->pps_from_sdra ? "SDR_A SYSREF generator" : "LMK OUT7 (GPS)");
 
@@ -190,6 +194,20 @@ int board_xmass_init(lldev_t dev,
     res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | pps_sel | (1 << 5));
 
     usleep(250000);
+
+    if (res == 0 && nmea_dump) {
+        char nmea[4096];
+        uart_core_t uc;
+        memset(nmea, 0, sizeof(nmea));
+        int ures = gpio_config(dev, subdev, gpio_base, GPIO4, GPIO_CFG_ALT0);
+        ures = ures ? ures : uart_core_init(dev, subdev, uart_base, &uc);
+        ures = ures ? ures : uart_core_rx_collect(&uc, sizeof(nmea) - 1, nmea, 3000);
+        if (ures < 0) {
+            USDR_LOG("XMSS", USDR_LOG_WARNING, "GPS NMEA: UART read failed, error %d\n", ures);
+        } else {
+            USDR_LOG("XMSS", USDR_LOG_WARNING, "GPS NMEA (%d bytes in 3 s):\n%s\n", ures, nmea);
+        }
+    }
 
     ob->refclk = 25e6;
     ob->calfreq = 444e6;
