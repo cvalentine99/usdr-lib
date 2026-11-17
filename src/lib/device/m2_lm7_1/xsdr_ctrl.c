@@ -51,6 +51,10 @@ enum {
 enum {
     XSDR_INT_REFCLK = 26000000,
     XSDR_SISO_RATE = 72000000,
+
+    // xSDR power-up values of the rails boosted for rates above 70 MSps
+    XSDR_VIO_NOMINAL_MV = 1480,
+    XSDR_LMS125_NOMINAL_MV = 1280,
 };
 
 // 1001011 - PDAC80501MDQFT
@@ -732,6 +736,7 @@ static int _xsdr_calibrate_lml(xsdr_dev_t *d)
             } else if (!d->siso_sdr_active_rx && d->new_rev && !d->ssdr && (d->s_rxrate > 70e6 || d->s_txrate > 70e6)) {
                 res = res ? res : xsdr_set_vio(d, 1940);
                 res = res ? res : xsdr_set_lms125vdd(d, 1320);
+                d->xsdr_rails_boosted = true;
             } else if (!d->siso_sdr_active_rx && !d->new_rev && (d->s_rxrate > 50e6 || d->s_txrate > 50e6)) {
                 res = res ? res : xsdr_set_vio(d, ((d->s_rxrate > 60e6 || d->s_txrate > 60e6)) ? 2150 : 1960);
             }
@@ -1334,11 +1339,34 @@ int xsdr_set_samplerate_ex(xsdr_dev_t *d,
 
         // We need RxTSP & TxTSP configured for proper LML - TSP alignment before LFSR training
         d->afe_active = true;
+    }
 
-        if ((rxrate > XSDR_SISO_RATE || txrate > XSDR_SISO_RATE) && !d->dpump) {
-            d->dpump = true;
-            USDR_LL_LOG(dev, "XDEV", USDR_LOG_WARNING, "High samplerate set, activating double pump mode: only SISO mode is allowed!\n");
-        }
+    // Decide double pump on every rate change, so going back to a lower rate restores MIMO
+    // instead of leaving the device in SISO-only mode until it is reopened
+    const bool dpump = d->dpump_forced || rxrate > XSDR_SISO_RATE || txrate > XSDR_SISO_RATE;
+    if (dpump && !d->dpump) {
+        USDR_LL_LOG(dev, "XDEV", USDR_LOG_WARNING, "High samplerate set, activating double pump mode: only SISO mode is allowed!\n");
+    } else if (!dpump && d->dpump) {
+        USDR_LL_LOG(dev, "XDEV", USDR_LOG_WARNING, "Samplerate at or below %.3f MSps, leaving double pump mode: MIMO is allowed again\n",
+                    XSDR_SISO_RATE / 1.0e6);
+    }
+    d->dpump = dpump;
+    if (!dpump) {
+        // Only streams opened in double pump mode request SISO DDR. Keeping it afterwards halves
+        // the CGEN target, which at low rates is too low to tune ("can't tune VCO for data clock")
+        d->siso_sdr_active_rx = false;
+        d->siso_sdr_active_tx = false;
+    }
+
+    if (d->xsdr_rails_boosted) {
+        // The LMS7002M CGEN VCO no longer calibrates on the high-rate boosted rails, so any later
+        // rate change failed with "can't tune VCO for data clock". Return the rails to their
+        // power-up values before retuning; _xsdr_calibrate_lml boosts them again if still needed.
+        res = lp8758_vout_set(dev, d->base.lmsstate.subdev, I2C_BUS_LP8758_FPGA, 1, XSDR_VIO_NOMINAL_MV);
+        res = res ? res : xsdr_set_lms125vdd(d, XSDR_LMS125_NOMINAL_MV);
+        if (res)
+            return res;
+        d->xsdr_rails_boosted = false;
     }
 
     // flags |= XSDR_LML_EXT_FIFOCLK_RX | XSDR_LML_EXT_FIFOCLK_TX;
@@ -1837,7 +1865,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         res = lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 2040);
     } else {
         // TODO check if we need this rail
-        res = lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 1, 1480);
+        res = lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 1, XSDR_VIO_NOMINAL_MV);
     }
 
     if (hwid == SSDRPRO_DEV) {
@@ -1847,7 +1875,7 @@ int _xsdr_init_revx(xsdr_dev_t *d, unsigned hwid)
         res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1850);
     } else {
         // LMS Vcore boost to 1.25V
-        res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 2, 1280);
+        res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 2, XSDR_LMS125_NOMINAL_MV);
         res = res ? res : lp8758_vout_set(dev, subdev, I2C_BUS_LP8758_FPGA, 3, 1850);
     }
 

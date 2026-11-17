@@ -1471,6 +1471,7 @@ int usdr_device_m2_lm7_1_initialize(pdevice_t udev, unsigned pcount, const char*
     }
 
     d->xdev.dpump = double_pump;
+    d->xdev.dpump_forced = double_pump;
 
     // Proxy operations
     memcpy(&d->my_ops, lowlevel_get_ops(dev), sizeof (lowlevel_ops_t));
