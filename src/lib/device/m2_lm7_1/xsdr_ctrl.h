@@ -100,6 +100,8 @@ struct xsdr_dev
     bool exttx;
     bool dump_cal_data;
     bool dpump; //Dual pump data
+    bool dpump_forced; // dpump device parameter: keep double pump at every rate
+    bool xsdr_rails_boosted; // VIO and LMS 1.25V rails raised for a rate above 70 MSps
     union {
         bool pmic_ch145_valid;
         bool dac_old_r5;
