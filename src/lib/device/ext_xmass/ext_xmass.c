@@ -12,6 +12,7 @@
 #include "../hw/lmk05318/lmk05318.h"
 #include "../hw/tmp114/tmp114.h"
 #include "../hw/at24/at24.h"
+#include "../../common/parse_params.h"
 
 #include "def_ext_xmass_ctrl.h"
 
@@ -102,8 +103,11 @@ static int _board_xmass_fill_lmk05318(board_xmass_t* ob, lmk05318_out_config_t l
     lmk05318_port_request(&lmk05318_outs_cfg[4], 4, cfreq, false, cfreq == 0 ? OUT_OFF : LVDS);
     lmk05318_port_request(&lmk05318_outs_cfg[5], 5, 0, false, OUT_OFF);
     lmk05318_port_request(&lmk05318_outs_cfg[6], 6, ob->refclk, false, LVCMOS_P_N);
-    // lmk05318_port_request(&lmk05318_outs_cfg[7], 7, 1, false, LVCMOS_P_N);
-    lmk05318_port_request(&lmk05318_outs_cfg[7], 7, 0, false, OUT_OFF);
+    if (ob->pps_from_sdra) {
+        lmk05318_port_request(&lmk05318_outs_cfg[7], 7, 0, false, OUT_OFF);
+    } else {
+        lmk05318_port_request(&lmk05318_outs_cfg[7], 7, 1, false, LVCMOS_P_N);
+    }
 
     lmk05318_set_port_affinity(&lmk05318_outs_cfg[4], AFF_APLL2);
     lmk05318_set_port_affinity(&lmk05318_outs_cfg[6], AFF_APLL1);
@@ -115,6 +119,7 @@ int board_xmass_init(lldev_t dev,
                      unsigned subdev,
                      unsigned gpio_base,
                      const char* compat,
+                     const char* params,
                      unsigned int i2c_loc,
                      board_xmass_t* ob)
 {
@@ -124,6 +129,32 @@ int board_xmass_init(lldev_t dev,
     if ((strcmp(compat, "m2a+e") != 0) && (strcmp(compat, "m2e") != 0) && (strcmp(compat, "m2a") != 0))
         return -ENODEV;
 
+
+    // pps_sdra (default): 1PPS_IN comes from SDR_A's SYSREF generator.
+    // pps_gps: 1PPS_IN comes from LMK OUT7, disciplined by the GPS PPS on PRIREF.
+    enum { P_PPS };
+    static const char* ppars[] = { "pps_", NULL };
+    struct param_data pd[SIZEOF_ARRAY(ppars)];
+    memset(pd, 0, sizeof(pd));
+    ob->pps_from_sdra = true;
+    if (params != NULL) {
+        const char* fault = NULL;
+        parse_params(params, ':', ppars, pd, &fault);
+        if (fault) {
+            USDR_LOG("XMSS", USDR_LOG_ERROR, "Unrecognized front end option: `%s`\n", fault);
+            return -EINVAL;
+        }
+        if (pd[P_PPS].item != NULL) {
+            if (pd[P_PPS].item_len == 3 && strncmp(pd[P_PPS].item, "gps", 3) == 0) {
+                ob->pps_from_sdra = false;
+            } else if (!(pd[P_PPS].item_len == 4 && strncmp(pd[P_PPS].item, "sdra", 4) == 0)) {
+                USDR_LOG("XMSS", USDR_LOG_ERROR, "pps_ must be gps or sdra\n");
+                return -EINVAL;
+            }
+        }
+    }
+    const unsigned pps_sel = ob->pps_from_sdra ? (1 << 6) : 0;
+    USDR_LOG("XMSS", USDR_LOG_INFO, "1PPS source: %s\n", ob->pps_from_sdra ? "SDR_A SYSREF generator" : "LMK OUT7 (GPS)");
 
     // Configure external SDA/SCL
     res = (res) ? res : gpio_config(dev, subdev, gpio_base, GPIO0, GPIO_CFG_IN);
@@ -156,7 +187,7 @@ int board_xmass_init(lldev_t dev,
     }
 
     // En LMK to ckeck it
-    res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5));
+    res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | pps_sel | (1 << 5));
 
     usleep(250000);
 
@@ -166,7 +197,7 @@ int board_xmass_init(lldev_t dev,
     //LMK05318 init start
     lmk05318_dpll_settings_t dpll;
     memset(&dpll, 0, sizeof(dpll));
-    dpll.enabled = false;
+    dpll.enabled = !ob->pps_from_sdra;
     dpll.en[LMK05318_PRIREF] = true;
     dpll.fref[LMK05318_PRIREF] = 1;
     dpll.type[LMK05318_PRIREF] = DPLL_REF_TYPE_DIFF_NOTERM;
@@ -207,8 +238,8 @@ int board_xmass_init(lldev_t dev,
     //if(res)
     //    return res;
 
-    res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | (1 << 6) | (0 << 5));
-    res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5));
+    res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | pps_sel | (0 << 5));
+    res = (res) ? res : tca9555_reg16_set(dev, subdev, i2c_xraa, TCA9555_OUT0, (3) | (1 << 4) | (1 << 8) | (1 << 7) | pps_sel | (1 << 5));
     USDR_LOG("XMSS", USDR_LOG_INFO, "LMK03518 outputs synced");
 
     ob->i2c_xraa = i2c_xraa;
@@ -283,7 +314,7 @@ int board_xmass_ctrl_cmd_rd(board_xmass_t* ob, uint32_t addr, uint32_t* preg)
 int board_xmass_sync_source(board_xmass_t* ob, unsigned sync_src)
 {
     int res;
-    unsigned default_cmd = (3) | (1 << 4) | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5);
+    unsigned default_cmd = (3) | (1 << 4) | (1 << 8) | (1 << 7) | (ob->pps_from_sdra ? (1 << 6) : 0) | (1 << 5);
 
     switch (sync_src) {
     case 0:

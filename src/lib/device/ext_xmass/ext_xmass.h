@@ -40,6 +40,7 @@ int board_xmass_init(lldev_t dev,
                      unsigned subdev,
                      unsigned gpio_base,
                      const char* compat,
+                     const char* params,
                      unsigned int i2c_loc,
                      board_xmass_t* ob);
 

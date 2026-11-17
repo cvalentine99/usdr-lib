@@ -205,7 +205,7 @@ int device_fe_probe(device_t* base, const char* compat, const char* fename, unsi
         case FET_PCIE_SUPER_SYNC: res = board_ext_supersync_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe->fe.supersync); break;
         case FET_PCIE_SIMPLE_SYNC: res = board_ext_simplesync_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe->fe.simplesync); break;
         case FET_PCIE_FE1005000: res = ext_fe_100_5000_init(dev, 0, gpiobase, spiext_cfg, 4, hint_strip, compat, &dfe->fe.fe_100_5000); break;
-        case FET_PCIE_XMASS: res = board_xmass_init(dev, 0, gpiobase, compat, def_i2c_loc, &dfe->fe.xmass); break;
+        case FET_PCIE_XMASS: res = board_xmass_init(dev, 0, gpiobase, compat, hint_strip, def_i2c_loc, &dfe->fe.xmass); break;
         case FET_PCIE_FE4CH4007200: res = ext_fe_ch4_400_7200_init(dev, 0, gpiobase, hint_strip, compat, &dfe->fe.fe_4ch_400_7200); break;
         default: res = -EIO; goto failed;
         }
