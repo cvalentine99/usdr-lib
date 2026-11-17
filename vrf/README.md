@@ -27,7 +27,7 @@ Each commit message explains its change and how it was tested.
 ## Documents
 
 - [xMASS operating notes](docs/xmass-operating-notes.md): the hardware, the sample rates that work, known issues, and diagnostics.
-- [Build and release](docs/build-and-release.md): building, testing a build without installing it, and updating from upstream.
+- [Build and release](docs/build-and-release.md): building, testing a build without installing it, packaging and installing, and updating from upstream.
 - [Hardware regression](docs/hardware-regression.md): the checks to run before shipping a build, and their expected results.
 
 The test programs are in [`tests/`](tests). `tests/run-regression.sh` runs the scripted checks.

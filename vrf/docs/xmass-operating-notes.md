@@ -83,3 +83,6 @@ Useful switches:
 - `SOAPY_SDR_LOG_LEVEL=INFO` (or `DEBUG`) shows the plugin's messages.
 - The `loglevel=6` device argument shows libusdr's detail: clock generator tuning, MMCM settings and calibration.
 - To run a build without installing it, see [build and release](build-and-release.md).
+- **Low rates fail in an app even though this fork is built:**
+  - Check which driver the app actually loaded: `grep usdr /proc/<pid>/maps`.
+  - `dpkg -l libusdr` shows a `+vrf` version once this fork's packages are installed. A `~resolute0`-style version is Wavelet Lab's stock build.

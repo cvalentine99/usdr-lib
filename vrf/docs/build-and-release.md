@@ -51,11 +51,36 @@ vrf/tests/run-regression.sh build
 
 ## Install
 
-Packaging from this fork isn't set up yet. That's the next step.
+Install this fork as Debian packages that replace Wavelet Lab's PPA packages of the same names. Every SoapySDR application then gets the fixes, CyberEther included, with no environment variables.
 
-Until it is, **don't `cmake --install` on a machine that has Wavelet Lab's packages installed**. You'd end up with two SoapySDR plugins registering the same `usdr` driver. With the RPATH fix, an installed build at least loads its own `libusdr`, but the duplicate plugin is still a problem. Use the environment variables above instead.
+[`../packaging/build-debs.sh`](../packaging/build-debs.sh) builds them on the machine you run it on with upstream's `packaging/<distro>` files, the same steps upstream's Docker builder takes. It packages a committed revision through `git archive`, so uncommitted changes never end up in a package. Once, install the packaging tools on top of the build dependencies above:
 
-The kernel driver comes from Wavelet Lab's `usdr-dkms` package. This fork doesn't change it.
+```bash
+sudo apt install debhelper dh-dkms dwarves
+```
+
+Then build and install:
+
+```bash
+vrf/packaging/build-debs.sh            # packages vrf/main; pass another revision to package that
+V=<version printed by the script>
+sudo apt install --allow-change-held-packages \
+    ./output/vrf-resolute-amd64/{libusdr,libusdr-dev,soapysdr-module-usdr,usdr-tools}_${V}_amd64.deb
+sudo apt-mark hold libusdr libusdr-dev soapysdr-module-usdr usdr-tools
+vrf/tests/run-regression.sh            # no argument: tests what is installed
+```
+
+- **Version:** `<upstream>+vrf<commit date>.<time>~<codename>1`, for example `1.0.1+vrf20261116.1948~resolute1`. It sorts above the PPA's build of the same release (`1.0.1~resolute0`), so apt treats ours as the upgrade. The maintainer is this checkout's git identity.
+- **Why hold:**
+  - Without the hold, a newer PPA release would replace these packages and bring back the bugs this fork fixes.
+  - The hold also blocks deliberate installs, which is why the install line passes `--allow-change-held-packages`. The same steps install a newer build of ours over an older one.
+  - Release the hold when you've rebased onto that release and built new packages, or to go back to Wavelet Lab's packages: `sudo apt-mark unhold libusdr libusdr-dev soapysdr-module-usdr usdr-tools`, then `sudo apt install --allow-downgrades libusdr=<ppa version> libusdr-dev=<ppa version> soapysdr-module-usdr=<ppa version> usdr-tools=<ppa version>`.
+- **Why these four:** `libusdr-dev`, `soapysdr-module-usdr` and `usdr-tools` each require the exact same `libusdr` version, so the four are installed together.
+- **What's left alone:**
+  - The kernel driver stays on Wavelet Lab's `usdr-dkms`. This fork doesn't change it, and reinstalling it would rebuild the module for no gain.
+  - `usdr-dmonitor` is built but not needed.
+
+**Don't `cmake --install` into `/usr/local` on a machine with these packages installed.** You'd end up with two SoapySDR plugins registering the same `usdr` driver. They share the `libusdr.so.0` soname, so one can run the other's library. To try a build, use the environment variables above.
 
 ## Update from upstream
 
@@ -68,6 +93,8 @@ vrf/tests/run-regression.sh build
 git push --force-with-lease fork vrf/main
 git push fork origin/main:main
 ```
+
+Then build and install new packages as described under [Install](#install).
 
 If a patch conflicts, check whether upstream fixed the same thing first. If they did, drop our patch rather than merging the two, and update the patch table in [`../README.md`](../README.md).
 
